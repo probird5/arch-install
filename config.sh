@@ -78,6 +78,10 @@ AMD_PACKAGES=(
   amd-ucode
 )
 
+CACHYOS_PACKAGES=(
+  topgrade
+  )
+
 # --- NVIDIA GPU (if needed) ---
 NVIDIA_PACKAGES=(
   nvidia
