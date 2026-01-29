@@ -298,38 +298,33 @@ MISC_PACKAGES=(
 # ==============================================================================
 AUR_PACKAGES=(
   # Desktop
-  swww
-  rofi-wayland
-  swappy
-  swaync
-  greetd-tuigreet-bin
-  nwg-displays
+  swww # don't need aur
+  rofi-wayland # maybe?
+  swappy # no need for aur
+  swaync # no need aur
+  greetd-tuigreet-bin #no aur
+  nwg-displays # no aur
 
   # Terminals
-  ghostty
+  ghostty #no aur
 
   # Applications
-  obsidian
-  1password
-  spotify
+  obsidian #no aur
+  1password 
+  spotify-launcher #no aur
 
   # Gaming
-  protonup-qt
-  bottles
+  protonup-qt # in cachy
+  bottles #flatpak
 
-  # Theming
-  dracula-gtk-theme
-  nordzy-icon-theme-git
-  nordzy-cursors
 
   # GPU tools
-  amdgpu_top
-  rocm-smi-lib
+  amdgpu_top #no need
+  rocm-smi-lib # no need
 
   # CLI
-  yazi
-  lf
+  yazi # no need
 
   # Dev
-  lazydocker
+  lazydocker # no need
 )
