@@ -86,7 +86,7 @@ AMD_PACKAGES=(
 
 CACHYOS_PACKAGES=(
   topgrade
-  )
+)
 
 # --- NVIDIA GPU (if needed) ---
 NVIDIA_PACKAGES=(
@@ -217,6 +217,19 @@ CLI_PACKAGES=(
   man-pages
   less
   htop
+  swww # don't need aur
+  rofi
+  swappy # no need for aur
+  swaync # no need aur
+  greetd-tuigreet
+  nwg-displays     # no aur
+  ghostty          #no aur
+  obsidian         #no aur
+  spotify-launcher #no aur
+  amdgpu_top       #no need
+  rocm-smi-lib     # no need
+  yazi             # no need
+  lazydocker       # no need
 )
 
 # --- Development ---
@@ -306,35 +319,8 @@ MISC_PACKAGES=(
 # ==============================================================================
 # AUR Packages (installed via paru/yay after first boot)
 # ==============================================================================
-AUR_PACKAGES=(
-  # Desktop
-  swww # don't need aur
-  rofi-wayland # maybe?
-  swappy # no need for aur
-  swaync # no need aur
-  greetd-tuigreet-bin #no aur
-  nwg-displays # no aur
+#  1password
 
-  # Terminals
-  ghostty #no aur
-
-  # Applications
-  obsidian #no aur
-  1password 
-  spotify-launcher #no aur
-
-  # Gaming
-  protonup-qt # in cachy
-  bottles #flatpak
-
-
-  # GPU tools
-  amdgpu_top #no need
-  rocm-smi-lib # no need
-
-  # CLI
-  yazi # no need
-
-  # Dev
-  lazydocker # no need
-)
+# Gaming
+#  protonup-qt # in cachy
+#  bottles #flatpak
