@@ -77,6 +77,93 @@ configure_pacman() {
 }
 
 # ==============================================================================
+# CachyOS optimized repositories (x86-64-v3/v4 rebuilds)
+# ==============================================================================
+configure_cachyos_repos() {
+    section "CachyOS Repositories"
+
+    read -rp "Add CachyOS optimized repositories? (x86-64-v3/v4 rebuilds) [y/N] " response
+    if [[ ! "$response" =~ ^[Yy]$ ]]; then
+        warn "Skipping CachyOS repositories."
+        CACHYOS_REPOS_ENABLED=false
+        return
+    fi
+
+    # Detect CPU instruction set level
+    local march
+    march=$(/lib/ld-linux-x86-64.so.2 --help 2>/dev/null | grep -oP 'x86-64-v\d' | sort -V | tail -1 || true)
+
+    if [[ -z "$march" ]]; then
+        warn "Could not detect CPU instruction set level. Skipping CachyOS repos."
+        CACHYOS_REPOS_ENABLED=false
+        return
+    fi
+
+    # Convert x86-64-v3 -> v3, x86-64-v4 -> v4
+    local level="${march##*-}"
+
+    if [[ "$level" != "v3" && "$level" != "v4" ]]; then
+        warn "CPU supports ${march} — CachyOS repos require at least x86-64-v3. Skipping."
+        CACHYOS_REPOS_ENABLED=false
+        return
+    fi
+
+    # Use v3 repos even for v4 CPUs (v4 repo availability is limited)
+    local repo_level="v3"
+    local arch_path="x86_64_v3"
+    if [[ "$level" == "v4" ]]; then
+        info "CPU supports x86-64-v4 — using v3 repos (broader package availability)"
+    fi
+
+    log "Detected CPU level: ${march}, using CachyOS ${repo_level} repositories"
+
+    # Import CachyOS signing key
+    info "Importing CachyOS GPG key..."
+    pacman-key --recv-keys F3B607488DB35A47 --keyserver keyserver.ubuntu.com
+    pacman-key --lsign-key F3B607488DB35A47
+    log "CachyOS GPG key imported and locally signed."
+
+    # Create mirrorlist with hardcoded arch path (standard pacman lacks $arch_v3)
+    local mirrorlist="/etc/pacman.d/cachyos-${repo_level}-mirrorlist"
+    cat > "${mirrorlist}" << EOF
+# CachyOS ${repo_level} mirrors
+Server = https://cdn77.cachyos.org/repo/${arch_path}/\$repo
+Server = https://cdn.cachyos.org/repo/${arch_path}/\$repo
+Server = https://mirror.cachyos.org/repo/${arch_path}/\$repo
+EOF
+    log "Created mirrorlist: ${mirrorlist}"
+
+    # Insert CachyOS repo sections before [core] in pacman.conf
+    # Skip [cachyos] repo (contains forked pacman we want to avoid)
+    local tmpconf
+    tmpconf=$(mktemp)
+    awk -v level="${repo_level}" -v mirrorlist="${mirrorlist}" '
+    /^\[core\]/ {
+        print "[cachyos-" level "]"
+        print "Include = " mirrorlist
+        print ""
+        print "[cachyos-core-" level "]"
+        print "Include = " mirrorlist
+        print ""
+        print "[cachyos-extra-" level "]"
+        print "Include = " mirrorlist
+        print ""
+    }
+    { print }
+    ' /etc/pacman.conf > "${tmpconf}"
+    mv "${tmpconf}" /etc/pacman.conf
+    chmod 644 /etc/pacman.conf
+    log "Added CachyOS repo sections to pacman.conf (before [core])"
+
+    # Sync new repos
+    info "Syncing CachyOS repositories..."
+    pacman -Sy
+    log "CachyOS repositories synced."
+
+    CACHYOS_REPOS_ENABLED=true
+}
+
+# ==============================================================================
 # Locale, timezone, hostname
 # ==============================================================================
 configure_system() {
@@ -187,6 +274,7 @@ build_package_list() {
     [[ "$INSTALL_DOCKER" == true ]] && packages+=("${DOCKER_PACKAGES[@]}")
     [[ "$INSTALL_GAMING" == true ]] && packages+=("${GAMING_PACKAGES[@]}")
     [[ "$INSTALL_VIRTUALIZATION" == true ]] && packages+=("${VIRT_PACKAGES[@]}")
+    [[ "$CACHYOS_REPOS_ENABLED" == true ]] && packages+=("${CACHYOS_PACKAGES[@]}")
 
     # Deduplicate
     printf '%s\n' "${packages[@]}" | sort -u
@@ -385,6 +473,7 @@ print_summary() {
     echo -e "  User:      ${CYAN}${USERNAME}${NC}"
     echo -e "  Shell:     ${CYAN}${USER_SHELL}${NC}"
     echo -e "  GPU:       ${CYAN}${GPU_DRIVER}${NC}"
+    echo -e "  CachyOS:   ${CYAN}${CACHYOS_REPOS_ENABLED}${NC}"
     echo -e "  Desktop:   ${CYAN}Hyprland (via greetd + tuigreet)${NC}"
     echo ""
     echo -e "${YELLOW}  Next steps:${NC}"
@@ -399,6 +488,8 @@ print_summary() {
 # Main
 # ==============================================================================
 main() {
+    CACHYOS_REPOS_ENABLED=false
+
     echo ""
     echo -e "${CYAN}============================================${NC}"
     echo -e "${CYAN}  Arch Linux Post-Install Setup${NC}"
@@ -408,6 +499,7 @@ main() {
 
     preflight
     configure_pacman
+    configure_cachyos_repos
     configure_system
     install_packages
     configure_grub
