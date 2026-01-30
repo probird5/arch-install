@@ -8,7 +8,7 @@
 # --- User ---
 USERNAME="probird5"
 USER_SHELL="/usr/bin/zsh"
-USER_GROUPS="wheel,networkmanager,audio,video,render,kvm,libvirt,docker,flatpak"
+USER_GROUPS="wheel,network,audio,video,render,kvm,libvirt,docker"
 HOSTNAME="messmer"
 
 # --- Locale & Time ---
@@ -78,8 +78,6 @@ AMD_PACKAGES=(
   lib32-vulkan-icd-loader
   libva-mesa-driver
   lib32-libva-mesa-driver
-  mesa-vdpau
-  lib32-mesa-vdpau
   xf86-video-amdgpu
   amd-ucode
 )
@@ -143,7 +141,7 @@ HYPRLAND_PACKAGES=(
   grim
   slurp
   wl-clipboard
-  xwayland
+  xorg-xwayland
   wayland-utils
   brightnessctl
   playerctl
@@ -282,7 +280,7 @@ VIRT_PACKAGES=(
   libvirt
   swtpm
   dnsmasq
-  spice-vdp-agent
+  spice-vdagent
 )
 
 # --- Browsers ---
@@ -319,8 +317,8 @@ MISC_PACKAGES=(
 # ==============================================================================
 # AUR Packages (installed via paru/yay after first boot)
 # ==============================================================================
-#  1password
-
-# Gaming
-#  protonup-qt # in cachy
-#  bottles #flatpak
+AUR_PACKAGES=(
+  # 1password
+  # protonup-qt  # in cachy
+  # bottles      # flatpak
+)

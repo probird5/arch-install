@@ -91,7 +91,7 @@ AUR_HELPER="paru"
 
 ## Dotfiles
 
-Dotfiles are managed via [GNU Stow](https://www.gnu.org/software/stow/) and deployed automatically during `post-install.sh`. The script clones your dotfiles repo and runs `setup.sh --stow-only`, which symlinks all configs into `~/.config/` and `~/`.
+Dotfiles are managed via [GNU Stow](https://www.gnu.org/software/stow/) and deployed automatically during `post-install.sh`. The script clones your dotfiles repo and stows all packages directly into `~/.config/` and `~/`.
 
 Configure the repo URL in `config.sh`:
 
@@ -100,15 +100,7 @@ DOTFILES_REPO="https://github.com/probird5/dotfiles.git"
 DOTFILES_DIR="${HOME}/Documents/Repos/dotfiles"
 ```
 
-Stowed packages: `alacritty`, `ghostty`, `hypr`, `nvim`, `rofi`, `starship`, `tmux`, `waybar`, `zsh` (plus backgrounds and fonts copied separately).
-
-To re-stow or update after changing dotfiles:
-
-```bash
-cd ~/Documents/Repos/dotfiles
-git pull
-./setup.sh --stow-only
-```
+Stowed packages: `alacritty`, `ghostty`, `hypr`, `i3`, `librewolf`, `nvim`, `picom`, `rofi`, `starship`, `tmux`, `waybar`, `wezterm`, `wlogout`, `zsh` (plus backgrounds and fonts copied separately).
 
 ## Desktop Stack
 

@@ -357,14 +357,19 @@ prepare_post_install() {
     section "Preparing Post-Install"
 
     local target="/home/${USERNAME}/arch_install"
-    mkdir -p "${target}"
-    cp "${SCRIPT_DIR}/config.sh" "${target}/"
-    cp "${SCRIPT_DIR}/post-install.sh" "${target}/"
-    cp "${SCRIPT_DIR}/tmux-setup.sh" "${target}/"
+
+    if [[ "$(realpath "${SCRIPT_DIR}")" == "$(realpath "${target}")" ]]; then
+        log "Already running from ${target}, skipping copy."
+    else
+        mkdir -p "${target}"
+        cp "${SCRIPT_DIR}/config.sh" "${target}/"
+        cp "${SCRIPT_DIR}/post-install.sh" "${target}/"
+        cp "${SCRIPT_DIR}/tmux-setup.sh" "${target}/"
+        log "Post-install scripts copied to ~${USERNAME}/arch_install/"
+    fi
+
     chmod +x "${target}"/*.sh
     chown -R "${USERNAME}:${USERNAME}" "${target}"
-
-    log "Post-install scripts copied to ~${USERNAME}/arch_install/"
 }
 
 # ==============================================================================

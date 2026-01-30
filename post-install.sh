@@ -320,39 +320,45 @@ setup_dotfiles() {
         git -C "${DOTFILES_DIR}" pull --ff-only || warn "Could not pull (not on a tracking branch?)"
     fi
 
-    # Run the dotfiles setup.sh in stow-only mode
-    # This removes conflicting configs and stows all packages
-    if [[ -x "${DOTFILES_DIR}/setup.sh" ]]; then
-        log "Running dotfiles setup.sh --stow-only..."
-        "${DOTFILES_DIR}/setup.sh" --stow-only
-        log "Dotfiles stowed."
-    else
-        warn "No setup.sh found in dotfiles repo. Stowing manually..."
+    # Clean up any existing configs (symlinks or directories) before stowing
+    log "Removing conflicting configs..."
+    local config_dirs=(alacritty ghostty hypr i3 nvim rofi starship waybar wlogout)
+    for dir in "${config_dirs[@]}"; do
+        [ -L "${HOME}/.config/$dir" ] && rm -f "${HOME}/.config/$dir"
+        [ -d "${HOME}/.config/$dir" ] && rm -rf "${HOME}/.config/$dir"
+    done
+    [ -L "${HOME}/.tmux.conf" ] || [ -f "${HOME}/.tmux.conf" ] && rm -f "${HOME}/.tmux.conf"
+    [ -L "${HOME}/.zshrc" ] || [ -f "${HOME}/.zshrc" ] && rm -f "${HOME}/.zshrc"
 
-        local stow_dirs=(
-            alacritty ghostty hypr nvim rofi
-            starship tmux waybar zsh
-        )
+    # Stow all dotfiles packages directly
+    local stow_dirs=(
+        alacritty ghostty hypr i3 librewolf nvim
+        picom rofi starship tmux waybar wezterm wlogout zsh
+    )
 
-        cd "${DOTFILES_DIR}"
-        for dir in "${stow_dirs[@]}"; do
-            if [[ -d "$dir" ]]; then
-                info "Stowing $dir..."
-                # Remove existing target to avoid conflicts
-                case "$dir" in
-                    alacritty|ghostty|hypr|nvim|rofi|starship|waybar)
-                        rm -rf "${HOME}/.config/$dir" ;;
-                    tmux)
-                        rm -f "${HOME}/.tmux.conf" ;;
-                    zsh)
-                        rm -f "${HOME}/.zshrc" ;;
-                esac
-                stow -v -t "${HOME}" "$dir" || warn "Failed to stow $dir"
-            fi
-        done
-        cd -
-        log "Dotfiles stowed manually."
+    cd "${DOTFILES_DIR}"
+    for dir in "${stow_dirs[@]}"; do
+        if [[ -d "$dir" ]]; then
+            info "Stowing $dir..."
+            stow -v -t "${HOME}" "$dir" || warn "Failed to stow $dir"
+        fi
+    done
+    cd -
+
+    # Copy backgrounds and fonts (not stowed)
+    if [[ -d "${DOTFILES_DIR}/backgrounds" ]]; then
+        mkdir -p "${HOME}/Pictures/backgrounds"
+        cp -r "${DOTFILES_DIR}/backgrounds/"* "${HOME}/Pictures/backgrounds/" 2>/dev/null || true
+        log "Backgrounds copied"
     fi
+    if [[ -d "${DOTFILES_DIR}/fonts" ]]; then
+        mkdir -p "${HOME}/.local/share/fonts"
+        cp -r "${DOTFILES_DIR}/fonts/"* "${HOME}/.local/share/fonts/" 2>/dev/null || true
+        fc-cache -fv 2>/dev/null || true
+        log "Fonts installed"
+    fi
+
+    log "Dotfiles stowed."
 }
 
 # ==============================================================================
@@ -404,9 +410,7 @@ print_summary() {
     echo ""
     echo -e "  ${BOLD}Dotfiles:${NC}"
     echo -e "    - Repo: ${CYAN}${DOTFILES_DIR}${NC}"
-    echo -e "    - Stowed via GNU Stow (setup.sh --stow-only)"
-    echo -e "    - To re-stow:  ${CYAN}cd ${DOTFILES_DIR} && ./setup.sh --stow-only${NC}"
-    echo -e "    - To unstow:   ${CYAN}cd ${DOTFILES_DIR} && stow -D <package>${NC}"
+    echo -e "    - Stowed via GNU Stow"
     echo ""
     echo -e "  ${YELLOW}Reboot recommended to pick up all changes.${NC}"
     echo ""
