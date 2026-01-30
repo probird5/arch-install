@@ -360,6 +360,7 @@ prepare_post_install() {
     mkdir -p "${target}"
     cp "${SCRIPT_DIR}/config.sh" "${target}/"
     cp "${SCRIPT_DIR}/post-install.sh" "${target}/"
+    cp "${SCRIPT_DIR}/tmux-setup.sh" "${target}/"
     chmod +x "${target}"/*.sh
     chown -R "${USERNAME}:${USERNAME}" "${target}"
 

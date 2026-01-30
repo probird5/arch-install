@@ -34,6 +34,11 @@ INSTALL_HYPRLAND=true
 INSTALL_DEV_TOOLS=true
 INSTALL_AUR_PACKAGES=true
 
+# --- Dotfiles ---
+# Git repo URL for your stow-based dotfiles
+DOTFILES_REPO="https://github.com/probird5/dotfiles.git"
+DOTFILES_DIR="${HOME}/Documents/Repos/dotfiles"
+
 # --- AUR helper ---
 # Options: "paru", "yay"
 AUR_HELPER="paru"
@@ -59,6 +64,7 @@ BASE_PACKAGES=(
   git
   wget
   curl
+  stow
 )
 
 # --- AMD GPU ---

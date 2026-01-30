@@ -35,7 +35,8 @@ reboot
 |---|---|---|
 | `config.sh` | sourced | Variables, feature toggles, all package lists |
 | `install.sh` | root | pacman config, system setup, GRUB, user, services |
-| `post-install.sh` | user | AUR helper (paru), AUR packages, theming, dotfiles |
+| `post-install.sh` | user | AUR helper (paru), AUR packages, theming, dotfiles, tmux |
+| `tmux-setup.sh` | user | Installs TPM, writes `.tmux.conf`, installs plugins |
 
 ## What Gets Installed
 
@@ -62,6 +63,7 @@ reboot
 - **Environment**: Wayland variables, editor, cursor size, Steam compat paths
 - **Services**: PipeWire user services, Flatpak (Flathub)
 - **Git**: preconfigured user/email
+- **Tmux**: TPM bootstrap, `.tmux.conf` with vim-tmux-navigator, tokyo-night-tmux, better-mouse-mode
 
 ## Configuration
 
@@ -89,20 +91,23 @@ AUR_HELPER="paru"
 
 ## Dotfiles
 
-The scripts set up theming and environment but dotfiles need to be symlinked manually:
+Dotfiles are managed via [GNU Stow](https://www.gnu.org/software/stow/) and deployed automatically during `post-install.sh`. The script clones your dotfiles repo and runs `setup.sh --stow-only`, which symlinks all configs into `~/.config/` and `~/`.
+
+Configure the repo URL in `config.sh`:
 
 ```bash
-git clone <your-dotfiles-repo> ~/dotfiles
+DOTFILES_REPO="https://github.com/probird5/dotfiles.git"
+DOTFILES_DIR="${HOME}/Documents/Repos/dotfiles"
+```
 
-ln -sf ~/dotfiles/hypr      ~/.config/hypr
-ln -sf ~/dotfiles/waybar    ~/.config/waybar
-ln -sf ~/dotfiles/rofi      ~/.config/rofi
-ln -sf ~/dotfiles/alacritty ~/.config/alacritty
-ln -sf ~/dotfiles/starship  ~/.config/starship
-ln -sf ~/dotfiles/nvim      ~/.config/nvim
-ln -sf ~/dotfiles/btop      ~/.config/btop
-ln -sf ~/dotfiles/fastfetch ~/.config/fastfetch
-ln -sf ~/dotfiles/ghostty   ~/.config/ghostty
+Stowed packages: `alacritty`, `ghostty`, `hypr`, `nvim`, `rofi`, `starship`, `tmux`, `waybar`, `zsh` (plus backgrounds and fonts copied separately).
+
+To re-stow or update after changing dotfiles:
+
+```bash
+cd ~/Documents/Repos/dotfiles
+git pull
+./setup.sh --stow-only
 ```
 
 ## Desktop Stack

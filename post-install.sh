@@ -304,6 +304,58 @@ enable_user_services() {
 }
 
 # ==============================================================================
+# Dotfiles (stow)
+# ==============================================================================
+setup_dotfiles() {
+    section "Dotfiles (GNU Stow)"
+
+    # Clone if not present
+    if [[ ! -d "${DOTFILES_DIR}" ]]; then
+        log "Cloning dotfiles repo..."
+        mkdir -p "$(dirname "${DOTFILES_DIR}")"
+        git clone "${DOTFILES_REPO}" "${DOTFILES_DIR}"
+    else
+        log "Dotfiles repo already exists at ${DOTFILES_DIR}"
+        info "Pulling latest changes..."
+        git -C "${DOTFILES_DIR}" pull --ff-only || warn "Could not pull (not on a tracking branch?)"
+    fi
+
+    # Run the dotfiles setup.sh in stow-only mode
+    # This removes conflicting configs and stows all packages
+    if [[ -x "${DOTFILES_DIR}/setup.sh" ]]; then
+        log "Running dotfiles setup.sh --stow-only..."
+        "${DOTFILES_DIR}/setup.sh" --stow-only
+        log "Dotfiles stowed."
+    else
+        warn "No setup.sh found in dotfiles repo. Stowing manually..."
+
+        local stow_dirs=(
+            alacritty ghostty hypr nvim rofi
+            starship tmux waybar zsh
+        )
+
+        cd "${DOTFILES_DIR}"
+        for dir in "${stow_dirs[@]}"; do
+            if [[ -d "$dir" ]]; then
+                info "Stowing $dir..."
+                # Remove existing target to avoid conflicts
+                case "$dir" in
+                    alacritty|ghostty|hypr|nvim|rofi|starship|waybar)
+                        rm -rf "${HOME}/.config/$dir" ;;
+                    tmux)
+                        rm -f "${HOME}/.tmux.conf" ;;
+                    zsh)
+                        rm -f "${HOME}/.zshrc" ;;
+                esac
+                stow -v -t "${HOME}" "$dir" || warn "Failed to stow $dir"
+            fi
+        done
+        cd -
+        log "Dotfiles stowed manually."
+    fi
+}
+
+# ==============================================================================
 # Rust toolchain verification
 # ==============================================================================
 verify_rust() {
@@ -316,6 +368,19 @@ verify_rust() {
         else
             log "Rust toolchain: $(rustup show active-toolchain)"
         fi
+    fi
+}
+
+# ==============================================================================
+# Tmux (TPM + config)
+# ==============================================================================
+setup_tmux() {
+    section "Tmux Setup"
+
+    if [[ -x "${SCRIPT_DIR}/tmux-setup.sh" ]]; then
+        "${SCRIPT_DIR}/tmux-setup.sh"
+    else
+        warn "tmux-setup.sh not found in ${SCRIPT_DIR}, skipping."
     fi
 }
 
@@ -338,22 +403,10 @@ print_summary() {
     echo -e "    - Flatpak: ${CYAN}Flathub remote${NC}"
     echo ""
     echo -e "  ${BOLD}Dotfiles:${NC}"
-    echo -e "    Your NixOS config sources dotfiles from the repo."
-    echo -e "    On Arch, symlink or copy them manually:"
-    echo ""
-    echo -e "    ${CYAN}# Clone your dotfiles repo${NC}"
-    echo -e "    git clone <your-dotfiles-repo> ~/dotfiles"
-    echo ""
-    echo -e "    ${CYAN}# Symlink configs${NC}"
-    echo -e "    ln -sf ~/dotfiles/hypr     ~/.config/hypr"
-    echo -e "    ln -sf ~/dotfiles/waybar   ~/.config/waybar"
-    echo -e "    ln -sf ~/dotfiles/rofi     ~/.config/rofi"
-    echo -e "    ln -sf ~/dotfiles/alacritty ~/.config/alacritty"
-    echo -e "    ln -sf ~/dotfiles/starship ~/.config/starship"
-    echo -e "    ln -sf ~/dotfiles/nvim     ~/.config/nvim"
-    echo -e "    ln -sf ~/dotfiles/btop     ~/.config/btop"
-    echo -e "    ln -sf ~/dotfiles/fastfetch ~/.config/fastfetch"
-    echo -e "    ln -sf ~/dotfiles/ghostty  ~/.config/ghostty"
+    echo -e "    - Repo: ${CYAN}${DOTFILES_DIR}${NC}"
+    echo -e "    - Stowed via GNU Stow (setup.sh --stow-only)"
+    echo -e "    - To re-stow:  ${CYAN}cd ${DOTFILES_DIR} && ./setup.sh --stow-only${NC}"
+    echo -e "    - To unstow:   ${CYAN}cd ${DOTFILES_DIR} && stow -D <package>${NC}"
     echo ""
     echo -e "  ${YELLOW}Reboot recommended to pick up all changes.${NC}"
     echo ""
@@ -381,6 +434,8 @@ main() {
     configure_firewall
     enable_user_services
     verify_rust
+    setup_dotfiles
+    setup_tmux
     print_summary
 }
 
