@@ -448,6 +448,63 @@ EOF
 }
 
 # ==============================================================================
+# Battery saver toggle script
+# ==============================================================================
+configure_battery_saver() {
+    section "Battery Saver"
+
+    cat > /usr/local/bin/battery-saver << 'EOF'
+#!/usr/bin/env bash
+# Toggle battery saver mode for Hyprland
+# Bind this to a key in your Hyprland config, e.g.:
+#   bind = SUPER, F12, exec, battery-saver
+
+STATE_FILE="${HOME}/.cache/battery-saver-active"
+
+enable_battery_saver() {
+    powerprofilesctl set power-saver
+    brightnessctl set 20%
+
+    if command -v docker &>/dev/null; then
+        sudo systemctl stop docker
+    fi
+
+    if command -v virsh &>/dev/null; then
+        sudo systemctl stop libvirtd
+    fi
+
+    mkdir -p "$(dirname "$STATE_FILE")"
+    touch "$STATE_FILE"
+    notify-send "Battery Saver" "Enabled — power-saver profile, screen dimmed, services stopped"
+}
+
+disable_battery_saver() {
+    powerprofilesctl set balanced
+    brightnessctl set 60%
+
+    if command -v docker &>/dev/null; then
+        sudo systemctl start docker
+    fi
+
+    if command -v virsh &>/dev/null; then
+        sudo systemctl start libvirtd
+    fi
+
+    rm -f "$STATE_FILE"
+    notify-send "Battery Saver" "Disabled — balanced profile, screen restored, services started"
+}
+
+if [[ -f "$STATE_FILE" ]]; then
+    disable_battery_saver
+else
+    enable_battery_saver
+fi
+EOF
+    chmod +x /usr/local/bin/battery-saver
+    log "Created /usr/local/bin/battery-saver toggle script"
+}
+
+# ==============================================================================
 # Configure SSH
 # ==============================================================================
 configure_ssh() {
@@ -597,6 +654,7 @@ main() {
     configure_user
     configure_greetd
     configure_steam_session
+    configure_battery_saver
     configure_ssh
     configure_firewall
     configure_swap
