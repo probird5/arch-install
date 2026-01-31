@@ -272,6 +272,15 @@ GAMING_PACKAGES=(
   lib32-sdl2
 )
 
+# --- CachyOS Gaming (requires CachyOS repos) ---
+CACHYOS_GAMING_PACKAGES=(
+  cachyos-gaming-meta
+  cachyos-gaming-applications
+  proton-cachyos-slr
+  wine-cachyos
+  umu-launcher
+)
+
 # --- Virtualization ---
 VIRT_PACKAGES=(
   qemu-full

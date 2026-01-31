@@ -247,6 +247,29 @@ configure_user() {
 }
 
 # ==============================================================================
+# Gaming configuration
+# ==============================================================================
+configure_gaming() {
+    section "Gaming Configuration"
+
+    read -rp "Will you be gaming on this install? [y/N] " response
+    if [[ ! "$response" =~ ^[Yy]$ ]]; then
+        warn "Skipping gaming packages."
+        INSTALL_GAMING=false
+        INSTALL_CACHYOS_GAMING=false
+        return
+    fi
+
+    if [[ "$CACHYOS_REPOS_ENABLED" == true ]]; then
+        log "CachyOS repos detected — CachyOS gaming meta packages will be installed."
+        INSTALL_CACHYOS_GAMING=true
+    else
+        warn "CachyOS repos are required for gaming packages. No gaming packages will be installed."
+        INSTALL_CACHYOS_GAMING=false
+    fi
+}
+
+# ==============================================================================
 # Install packages
 # ==============================================================================
 build_package_list() {
@@ -272,7 +295,7 @@ build_package_list() {
     [[ "$INSTALL_HYPRLAND" == true ]] && packages+=("${HYPRLAND_PACKAGES[@]}")
     [[ "$INSTALL_DEV_TOOLS" == true ]] && packages+=("${DEV_PACKAGES[@]}")
     [[ "$INSTALL_DOCKER" == true ]] && packages+=("${DOCKER_PACKAGES[@]}")
-    [[ "$INSTALL_GAMING" == true ]] && packages+=("${GAMING_PACKAGES[@]}")
+    [[ "$INSTALL_CACHYOS_GAMING" == true ]] && packages+=("${CACHYOS_GAMING_PACKAGES[@]}")
     [[ "$INSTALL_VIRTUALIZATION" == true ]] && packages+=("${VIRT_PACKAGES[@]}")
     [[ "$CACHYOS_REPOS_ENABLED" == true ]] && packages+=("${CACHYOS_PACKAGES[@]}")
 
@@ -340,22 +363,88 @@ enable_services() {
 }
 
 # ==============================================================================
-# Configure greetd (tuigreet -> Hyprland)
+# Configure greetd (tuigreet with session selection)
 # ==============================================================================
 configure_greetd() {
     section "Configuring greetd"
 
+    # Create Hyprland wayland session entry
+    mkdir -p /usr/share/wayland-sessions
+    cat > /usr/share/wayland-sessions/hyprland.desktop << 'EOF'
+[Desktop Entry]
+Name=Hyprland
+Comment=An intelligent dynamic tiling Wayland compositor
+Exec=Hyprland
+Type=Application
+DesktopNames=Hyprland
+Keywords=wayland;compositor;tiling;
+EOF
+    log "Created Hyprland wayland session entry"
+
+    # Configure greetd with session discovery
     mkdir -p /etc/greetd
     cat > /etc/greetd/config.toml << EOF
 [terminal]
 vt = 1
 
 [default_session]
-command = "tuigreet --time --cmd Hyprland"
+command = "tuigreet --time --sessions /usr/share/wayland-sessions"
 user = "${USERNAME}"
 EOF
 
-    log "greetd configured to launch Hyprland via tuigreet"
+    log "greetd configured with session selection (F3 to switch)"
+}
+
+# ==============================================================================
+# Configure Steam Gamescope session (couch gaming)
+# ==============================================================================
+configure_steam_session() {
+    if [[ "$INSTALL_CACHYOS_GAMING" != true ]]; then
+        return
+    fi
+
+    section "Steam Gamescope Session"
+
+    # Create wrapper script that stops containers/VMs before launching Steam
+    cat > /usr/local/bin/steam-session << 'EOF'
+#!/usr/bin/env bash
+# Steam Gamescope Session — stops containers and VMs, then launches Steam Big Picture
+
+# Stop all running Docker containers
+if command -v docker &>/dev/null; then
+    running=$(docker ps -q)
+    if [[ -n "$running" ]]; then
+        echo "Stopping Docker containers..."
+        docker stop $running
+    fi
+fi
+
+# Shut down all running libvirt VMs
+if command -v virsh &>/dev/null; then
+    virsh list --name 2>/dev/null | while read -r vm; do
+        [[ -z "$vm" ]] && continue
+        echo "Shutting down VM: $vm"
+        virsh shutdown "$vm"
+    done
+fi
+
+# Launch gamescope with Steam Big Picture
+exec gamescope -e -- steam -gamepadui -steamdeck
+EOF
+    chmod +x /usr/local/bin/steam-session
+    log "Created /usr/local/bin/steam-session wrapper script"
+
+    # Create wayland session entry
+    cat > /usr/share/wayland-sessions/steam-gamepadui.desktop << 'EOF'
+[Desktop Entry]
+Name=Steam Big Picture
+Comment=Steam Gamepad UI via Gamescope (stops containers/VMs)
+Exec=/usr/local/bin/steam-session
+Type=Application
+DesktopNames=gamescope
+Keywords=wayland;gaming;steam;gamescope;
+EOF
+    log "Created Steam Big Picture wayland session entry"
 }
 
 # ==============================================================================
@@ -489,6 +578,7 @@ print_summary() {
 # ==============================================================================
 main() {
     CACHYOS_REPOS_ENABLED=false
+    INSTALL_CACHYOS_GAMING=false
 
     echo ""
     echo -e "${CYAN}============================================${NC}"
@@ -500,11 +590,13 @@ main() {
     preflight
     configure_pacman
     configure_cachyos_repos
+    configure_gaming
     configure_system
     install_packages
     configure_grub
     configure_user
     configure_greetd
+    configure_steam_session
     configure_ssh
     configure_firewall
     configure_swap
