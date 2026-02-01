@@ -358,7 +358,7 @@ install_packages() {
     mapfile -t ALL_PACKAGES < <(build_package_list)
     info "Installing ${#ALL_PACKAGES[@]} packages..."
 
-    pacman -S --noconfirm --needed "${ALL_PACKAGES[@]}"
+    pacman -Syu --noconfirm --needed "${ALL_PACKAGES[@]}"
 
     log "All pacman packages installed."
 }
