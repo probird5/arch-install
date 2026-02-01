@@ -141,15 +141,32 @@ Server = https://mirror.cachyos.org/repo/x86_64/$repo
 EOF
     log "Created mirrorlist: ${main_mirrorlist}"
 
-    # Insert all CachyOS repo sections before [core] in pacman.conf
-    # [cachyos] includes the forked pacman which adds v3/v4 architecture support
+    # Step 1: Add only [cachyos] repo first (x86_64, works with standard pacman)
     local tmpconf
     tmpconf=$(mktemp)
-    awk -v level="${repo_level}" -v v3_mirrorlist="${v3_mirrorlist}" -v main_mirrorlist="${main_mirrorlist}" '
+    awk -v main_mirrorlist="${main_mirrorlist}" '
     /^\[core\]/ {
         print "[cachyos]"
         print "Include = " main_mirrorlist
         print ""
+    }
+    { print }
+    ' /etc/pacman.conf > "${tmpconf}"
+    mv "${tmpconf}" /etc/pacman.conf
+    chmod 644 /etc/pacman.conf
+    log "Added [cachyos] repo to pacman.conf"
+
+    # Step 2: Sync and install CachyOS pacman (adds v3/v4 architecture support)
+    info "Syncing [cachyos] repo..."
+    pacman -Sy
+    info "Installing CachyOS pacman (adds v3/v4 architecture support)..."
+    pacman -S --noconfirm cachyos/pacman
+    log "CachyOS pacman installed."
+
+    # Step 3: Now add v3 repos (CachyOS pacman can handle v3 architecture)
+    tmpconf=$(mktemp)
+    awk -v level="${repo_level}" -v v3_mirrorlist="${v3_mirrorlist}" '
+    /^\[cachyos\]/ {
         print "[cachyos-" level "]"
         print "Include = " v3_mirrorlist
         print ""
@@ -164,14 +181,12 @@ EOF
     ' /etc/pacman.conf > "${tmpconf}"
     mv "${tmpconf}" /etc/pacman.conf
     chmod 644 /etc/pacman.conf
-    log "Added CachyOS repos to pacman.conf (before [core])"
+    log "Added v3 repos to pacman.conf"
 
-    # Sync and install the CachyOS pacman first (needed for v3 architecture support)
-    info "Syncing CachyOS repositories..."
+    # Step 4: Final sync with all repos
+    info "Syncing all CachyOS repositories..."
     pacman -Sy
-    info "Installing CachyOS pacman (adds v3/v4 architecture support)..."
-    pacman -S --noconfirm cachyos/pacman
-    log "CachyOS repositories configured and pacman updated."
+    log "CachyOS repositories fully configured."
 
     CACHYOS_REPOS_ENABLED=true
 }
