@@ -123,7 +123,7 @@ configure_cachyos_repos() {
     pacman-key --lsign-key F3B607488DB35A47
     log "CachyOS GPG key imported and locally signed."
 
-    # Create mirrorlist with hardcoded arch path (standard pacman lacks $arch_v3)
+    # Create mirrorlist for v3 repos (optimized rebuilds)
     local mirrorlist="/etc/pacman.d/cachyos-${repo_level}-mirrorlist"
     cat > "${mirrorlist}" << EOF
 # CachyOS ${repo_level} mirrors
@@ -133,12 +133,30 @@ Server = https://mirror.cachyos.org/repo/${arch_path}/\$repo
 EOF
     log "Created mirrorlist: ${mirrorlist}"
 
+    # Create mirrorlist for main [cachyos] repo (CachyOS-specific packages)
+    local main_mirrorlist="/etc/pacman.d/cachyos-mirrorlist"
+    cat > "${main_mirrorlist}" << 'EOF'
+# CachyOS main mirrors
+Server = https://cdn77.cachyos.org/repo/x86_64/$repo
+Server = https://cdn.cachyos.org/repo/x86_64/$repo
+Server = https://mirror.cachyos.org/repo/x86_64/$repo
+EOF
+    log "Created mirrorlist: ${main_mirrorlist}"
+
+    # Block CachyOS forked pacman from being installed
+    if ! grep -q "^IgnorePkg.*pacman" /etc/pacman.conf; then
+        sed -i '/^\[options\]/a IgnorePkg = pacman' /etc/pacman.conf
+        log "Added IgnorePkg = pacman to prevent forked pacman"
+    fi
+
     # Insert CachyOS repo sections before [core] in pacman.conf
-    # Skip [cachyos] repo (contains forked pacman we want to avoid)
     local tmpconf
     tmpconf=$(mktemp)
-    awk -v level="${repo_level}" -v mirrorlist="${mirrorlist}" '
+    awk -v level="${repo_level}" -v mirrorlist="${mirrorlist}" -v main_mirrorlist="${main_mirrorlist}" '
     /^\[core\]/ {
+        print "[cachyos]"
+        print "Include = " main_mirrorlist
+        print ""
         print "[cachyos-" level "]"
         print "Include = " mirrorlist
         print ""
