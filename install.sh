@@ -52,6 +52,16 @@ preflight() {
 configure_pacman() {
     section "Configuring pacman"
 
+    # Remove any existing CachyOS repos from previous runs
+    if grep -q "^\[cachyos" /etc/pacman.conf; then
+        warn "Found leftover CachyOS repos in pacman.conf, cleaning up..."
+        sed -i '/^\[cachyos.*\]/,/^Include.*cachyos/d' /etc/pacman.conf
+        sed -i '/^IgnorePkg.*pacman/d' /etc/pacman.conf
+        # Clean up blank lines left behind
+        sed -i '/^$/N;/^\n$/d' /etc/pacman.conf
+        log "Removed leftover CachyOS repo entries"
+    fi
+
     # Enable ParallelDownloads
     if grep -q "^#ParallelDownloads" /etc/pacman.conf; then
         sed -i 's/^#ParallelDownloads.*/ParallelDownloads = 10/' /etc/pacman.conf
