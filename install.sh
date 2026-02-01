@@ -344,6 +344,17 @@ build_package_list() {
 install_packages() {
     section "Installing Packages"
 
+    # Remove packages that conflict with CachyOS replacements
+    if [[ "$INSTALL_CACHYOS_GAMING" == true ]]; then
+        local conflicts=(wine wine-gecko wine-mono)
+        for pkg in "${conflicts[@]}"; do
+            if pacman -Qi "$pkg" &>/dev/null; then
+                info "Removing $pkg (conflicts with CachyOS gaming packages)..."
+                pacman -Rdd --noconfirm "$pkg"
+            fi
+        done
+    fi
+
     mapfile -t ALL_PACKAGES < <(build_package_list)
     info "Installing ${#ALL_PACKAGES[@]} packages..."
 
