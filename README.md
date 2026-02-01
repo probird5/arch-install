@@ -124,7 +124,7 @@ Run as root on a freshly installed base Arch system. Performs the following in o
 
 1. **Pre-flight checks** — verifies root access and internet
 2. **Pacman configuration** — parallel downloads, color, multilib
-3. **CachyOS repositories** — optional x86-64-v3/v4 optimized repos (interactive prompt)
+3. **CachyOS repositories** — optional v3 optimized packages + CachyOS gaming/tools (interactive prompt)
 4. **Gaming configuration** — optional CachyOS gaming packages (interactive prompt)
 5. **System configuration** — timezone, locale, keymap, hostname
 6. **Package installation** — all packages from config.sh based on feature toggles
@@ -166,7 +166,7 @@ The install script asks three questions during execution:
 
 | Prompt | Default | Effect |
 |---|---|---|
-| Add CachyOS optimized repositories? | No | Enables x86-64-v3/v4 optimized repos |
+| Add CachyOS repositories? | No | Enables CachyOS repos with v3 optimized packages, gaming meta, proton, etc. |
 | Will you be gaming on this install? | No | Installs CachyOS gaming meta packages (requires CachyOS repos) |
 | Create a 64GB swapfile? | No | Creates btrfs swapfile at `/swapfile` |
 
@@ -178,10 +178,11 @@ When enabled, the script:
 
 1. Detects your CPU instruction set level (x86-64-v3 or v4)
 2. Imports the CachyOS GPG signing key
-3. Creates a mirrorlist at `/etc/pacman.d/cachyos-v3-mirrorlist`
-4. Adds `[cachyos-v3]`, `[cachyos-core-v3]`, and `[cachyos-extra-v3]` repos before `[core]` in `pacman.conf`
+3. Creates mirrorlists for both the main and v3 repos
+4. Adds `[cachyos]`, `[cachyos-v3]`, `[cachyos-core-v3]`, and `[cachyos-extra-v3]` repos before `[core]` in `pacman.conf`
+5. Installs the CachyOS forked pacman (required for v3 architecture support)
 
-These repos provide performance-optimized rebuilds of Arch packages compiled for modern CPUs. The `[cachyos]` main repo is intentionally skipped to avoid pulling in the forked CachyOS pacman.
+This provides x86-64-v3 optimized rebuilds of Arch packages and access to CachyOS-specific packages (gaming meta, topgrade, proton-cachyos, wine-cachyos, etc.). The CachyOS pacman is a minimal fork that adds v3/v4 architecture recognition — without it, standard pacman rejects v3 packages.
 
 ---
 

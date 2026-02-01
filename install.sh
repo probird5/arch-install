@@ -77,12 +77,12 @@ configure_pacman() {
 }
 
 # ==============================================================================
-# CachyOS optimized repositories (x86-64-v3/v4 rebuilds)
+# CachyOS repositories (includes forked pacman for v3 architecture support)
 # ==============================================================================
 configure_cachyos_repos() {
     section "CachyOS Repositories"
 
-    read -rp "Add CachyOS optimized repositories? (x86-64-v3/v4 rebuilds) [y/N] " response
+    read -rp "Add CachyOS repositories? (v3 optimized packages, gaming meta, proton, etc.) [y/N] " response
     if [[ ! "$response" =~ ^[Yy]$ ]]; then
         warn "Skipping CachyOS repositories."
         CACHYOS_REPOS_ENABLED=false
@@ -99,7 +99,6 @@ configure_cachyos_repos() {
         return
     fi
 
-    # Convert x86-64-v3 -> v3, x86-64-v4 -> v4
     local level="${march##*-}"
 
     if [[ "$level" != "v3" && "$level" != "v4" ]]; then
@@ -108,7 +107,6 @@ configure_cachyos_repos() {
         return
     fi
 
-    # Use v3 repos even for v4 CPUs (v4 repo availability is limited)
     local repo_level="v3"
     local arch_path="x86_64_v3"
     if [[ "$level" == "v4" ]]; then
@@ -123,17 +121,17 @@ configure_cachyos_repos() {
     pacman-key --lsign-key F3B607488DB35A47
     log "CachyOS GPG key imported and locally signed."
 
-    # Create mirrorlist for v3 repos (optimized rebuilds)
-    local mirrorlist="/etc/pacman.d/cachyos-${repo_level}-mirrorlist"
-    cat > "${mirrorlist}" << EOF
-# CachyOS ${repo_level} mirrors
+    # Create mirrorlist for v3 repos
+    local v3_mirrorlist="/etc/pacman.d/cachyos-v3-mirrorlist"
+    cat > "${v3_mirrorlist}" << EOF
+# CachyOS v3 mirrors
 Server = https://cdn77.cachyos.org/repo/${arch_path}/\$repo
 Server = https://cdn.cachyos.org/repo/${arch_path}/\$repo
 Server = https://mirror.cachyos.org/repo/${arch_path}/\$repo
 EOF
-    log "Created mirrorlist: ${mirrorlist}"
+    log "Created mirrorlist: ${v3_mirrorlist}"
 
-    # Create mirrorlist for main [cachyos] repo (CachyOS-specific packages)
+    # Create mirrorlist for main [cachyos] repo (x86_64)
     local main_mirrorlist="/etc/pacman.d/cachyos-mirrorlist"
     cat > "${main_mirrorlist}" << 'EOF'
 # CachyOS main mirrors
@@ -143,40 +141,37 @@ Server = https://mirror.cachyos.org/repo/x86_64/$repo
 EOF
     log "Created mirrorlist: ${main_mirrorlist}"
 
-    # Block CachyOS forked pacman from being installed
-    if ! grep -q "^IgnorePkg.*pacman" /etc/pacman.conf; then
-        sed -i '/^\[options\]/a IgnorePkg = pacman' /etc/pacman.conf
-        log "Added IgnorePkg = pacman to prevent forked pacman"
-    fi
-
-    # Insert CachyOS repo sections before [core] in pacman.conf
+    # Insert all CachyOS repo sections before [core] in pacman.conf
+    # [cachyos] includes the forked pacman which adds v3/v4 architecture support
     local tmpconf
     tmpconf=$(mktemp)
-    awk -v level="${repo_level}" -v mirrorlist="${mirrorlist}" -v main_mirrorlist="${main_mirrorlist}" '
+    awk -v level="${repo_level}" -v v3_mirrorlist="${v3_mirrorlist}" -v main_mirrorlist="${main_mirrorlist}" '
     /^\[core\]/ {
         print "[cachyos]"
         print "Include = " main_mirrorlist
         print ""
         print "[cachyos-" level "]"
-        print "Include = " mirrorlist
+        print "Include = " v3_mirrorlist
         print ""
         print "[cachyos-core-" level "]"
-        print "Include = " mirrorlist
+        print "Include = " v3_mirrorlist
         print ""
         print "[cachyos-extra-" level "]"
-        print "Include = " mirrorlist
+        print "Include = " v3_mirrorlist
         print ""
     }
     { print }
     ' /etc/pacman.conf > "${tmpconf}"
     mv "${tmpconf}" /etc/pacman.conf
     chmod 644 /etc/pacman.conf
-    log "Added CachyOS repo sections to pacman.conf (before [core])"
+    log "Added CachyOS repos to pacman.conf (before [core])"
 
-    # Sync new repos
+    # Sync and install the CachyOS pacman first (needed for v3 architecture support)
     info "Syncing CachyOS repositories..."
     pacman -Sy
-    log "CachyOS repositories synced."
+    info "Installing CachyOS pacman (adds v3/v4 architecture support)..."
+    pacman -S --noconfirm cachyos/pacman
+    log "CachyOS repositories configured and pacman updated."
 
     CACHYOS_REPOS_ENABLED=true
 }
