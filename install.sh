@@ -350,7 +350,7 @@ install_packages() {
         for pkg in "${conflicts[@]}"; do
             if pacman -Qi "$pkg" &>/dev/null; then
                 info "Removing $pkg (conflicts with CachyOS gaming packages)..."
-                pacman -Rdd --noconfirm "$pkg"
+                pacman -Rdd --noconfirm "$pkg" || warn "Could not remove $pkg, continuing anyway..."
             fi
         done
     fi
@@ -593,7 +593,7 @@ EOF
 }
 
 # ==============================================================================
-# Swap file (64GB to match NixOS config)
+# Swap file
 # ==============================================================================
 configure_swap() {
     section "Swap Configuration"
@@ -603,20 +603,48 @@ configure_swap() {
         return
     fi
 
-    read -rp "Create a 64GB swapfile at /swapfile? [y/N] " response
-    if [[ "$response" =~ ^[Yy]$ ]]; then
-        info "Creating 64GB swapfile (this may take a moment)..."
-        btrfs filesystem mkswapfile --size 64G /swapfile
-        mkswap /swapfile
-        swapon /swapfile
+    local ram_gb
+    ram_gb=$(awk '/MemTotal/ {printf "%d", $2/1024/1024}' /proc/meminfo)
 
+    echo "  Detected RAM: ${ram_gb}GB"
+    echo "  Recommended:  8GB (general use) or ${ram_gb}GB+ (hibernation support)"
+    read -rp "Swapfile size in GB (0 to skip) [8]: " swap_size
+    swap_size="${swap_size:-8}"
+
+    if [[ "$swap_size" == "0" ]]; then
+        warn "Skipping swapfile creation."
+        return
+    fi
+
+    if ! [[ "$swap_size" =~ ^[0-9]+$ ]] || [[ "$swap_size" -lt 1 ]]; then
+        warn "Invalid size '${swap_size}', skipping swapfile."
+        return
+    fi
+
+    info "Creating ${swap_size}GB swapfile (this may take a moment)..."
+
+    # Try btrfs-native method first, fall back to manual creation
+    if btrfs filesystem mkswapfile --size "${swap_size}G" /swapfile 2>/dev/null; then
+        log "Swapfile created via btrfs mkswapfile."
+    else
+        warn "btrfs mkswapfile failed, falling back to manual creation..."
+        rm -f /swapfile
+        truncate -s 0 /swapfile
+        chattr +C /swapfile 2>/dev/null || true
+        fallocate -l "${swap_size}G" /swapfile
+        chmod 600 /swapfile
+        mkswap /swapfile
+    fi
+
+    if swapon /swapfile; then
         # Add to fstab if not present
         if ! grep -q "/swapfile" /etc/fstab; then
             echo '/swapfile none swap defaults 0 0' >> /etc/fstab
         fi
-        log "Swapfile created and enabled."
+        log "Swapfile (${swap_size}GB) created and enabled."
     else
-        warn "Skipping swapfile creation."
+        err "Failed to enable swapfile. You may need to configure swap manually."
+        rm -f /swapfile
     fi
 }
 
