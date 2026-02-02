@@ -397,10 +397,11 @@ install_packages() {
     section "Installing Packages"
 
     # Remove packages that conflict with CachyOS replacements
+    # Use pacman -Q (exact name match) instead of -Qi (which matches virtual provides)
     if [[ "$INSTALL_CACHYOS_GAMING" == true ]]; then
         local conflicts=(wine wine-gecko wine-mono)
         for pkg in "${conflicts[@]}"; do
-            if pacman -Qi "$pkg" &>/dev/null; then
+            if pacman -Q "$pkg" &>/dev/null 2>&1; then
                 info "Removing $pkg (conflicts with CachyOS gaming packages)..."
                 pacman -Rdd --noconfirm "$pkg" || warn "Could not remove $pkg, continuing anyway..."
             fi
