@@ -64,9 +64,7 @@ install_aur_helper() {
 
     log "Building ${AUR_HELPER} from source..."
     git clone "https://aur.archlinux.org/${AUR_HELPER}.git" "${build_dir}/${AUR_HELPER}"
-    cd "${build_dir}/${AUR_HELPER}"
-    makepkg -si --noconfirm
-    cd -
+    (cd "${build_dir}/${AUR_HELPER}" && makepkg -si --noconfirm)
 
     rm -rf "${build_dir}"
     log "${AUR_HELPER} installed."
@@ -297,10 +295,14 @@ enable_user_services() {
     section "User Services"
 
     # PipeWire (runs as user service)
-    systemctl --user enable --now pipewire.socket
-    systemctl --user enable --now pipewire-pulse.socket
-    systemctl --user enable --now wireplumber
-    log "PipeWire user services enabled"
+    local -a user_services=(pipewire.socket pipewire-pulse.socket wireplumber)
+    for svc in "${user_services[@]}"; do
+        if systemctl --user enable --now "$svc" 2>/dev/null; then
+            log "$svc enabled"
+        else
+            warn "Could not enable $svc (may need a graphical session), skipping"
+        fi
+    done
 }
 
 # ==============================================================================
@@ -327,23 +329,22 @@ setup_dotfiles() {
         [ -L "${HOME}/.config/$dir" ] && rm -f "${HOME}/.config/$dir"
         [ -d "${HOME}/.config/$dir" ] && rm -rf "${HOME}/.config/$dir"
     done
-    [ -L "${HOME}/.tmux.conf" ] || [ -f "${HOME}/.tmux.conf" ] && rm -f "${HOME}/.tmux.conf"
-    [ -L "${HOME}/.zshrc" ] || [ -f "${HOME}/.zshrc" ] && rm -f "${HOME}/.zshrc"
+    rm -f "${HOME}/.tmux.conf"
+    rm -f "${HOME}/.zshrc"
 
     # Stow all dotfiles packages directly
+    # tmux is excluded — managed by tmux-setup.sh instead
     local stow_dirs=(
         alacritty ghostty hypr i3 librewolf nvim
-        picom rofi starship tmux waybar wezterm wlogout zsh
+        picom rofi starship waybar wezterm wlogout zsh
     )
 
-    cd "${DOTFILES_DIR}"
     for dir in "${stow_dirs[@]}"; do
-        if [[ -d "$dir" ]]; then
+        if [[ -d "${DOTFILES_DIR}/$dir" ]]; then
             info "Stowing $dir..."
-            stow -v -t "${HOME}" "$dir" || warn "Failed to stow $dir"
+            stow -v -d "${DOTFILES_DIR}" -t "${HOME}" "$dir" || warn "Failed to stow $dir"
         fi
     done
-    cd -
 
     # Copy backgrounds and fonts (not stowed)
     if [[ -d "${DOTFILES_DIR}/backgrounds" ]]; then
@@ -430,6 +431,8 @@ main() {
     install_aur_helper
     install_aur_packages
     configure_git
+    setup_dotfiles
+    setup_tmux
     configure_shell
     configure_theming
     configure_environment
@@ -438,8 +441,6 @@ main() {
     configure_firewall
     enable_user_services
     verify_rust
-    setup_dotfiles
-    setup_tmux
     print_summary
 }
 

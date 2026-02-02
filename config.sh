@@ -8,7 +8,7 @@
 # --- User ---
 USERNAME="probird5"
 USER_SHELL="/usr/bin/zsh"
-USER_GROUPS="wheel,network,audio,video,render,kvm,libvirt,docker"
+USER_GROUPS="wheel,network,audio,video,render,kvm"
 HOSTNAME="messmer"
 
 # --- Locale & Time ---
@@ -80,6 +80,8 @@ AMD_PACKAGES=(
   lib32-libva-mesa-driver
   xf86-video-amdgpu
   amd-ucode
+  amdgpu_top
+  rocm-smi-lib
 )
 
 CACHYOS_PACKAGES=(
@@ -219,15 +221,12 @@ CLI_PACKAGES=(
   rofi
   swappy # no need for aur
   swaync # no need aur
-  greetd-tuigreet
-  nwg-displays     # no aur
-  ghostty          #no aur
-  obsidian         #no aur
-  spotify-launcher #no aur
-  amdgpu_top       #no need
-  rocm-smi-lib     # no need
-  yazi             # no need
-  lazydocker       # no need
+  nwg-displays
+  ghostty
+  obsidian
+  spotify-launcher
+  yazi
+  lazydocker
 )
 
 # --- Development ---

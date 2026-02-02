@@ -12,10 +12,12 @@ set -euo pipefail
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
 log()  { echo -e "${GREEN}[+]${NC} $*"; }
+warn() { echo -e "${YELLOW}[!]${NC} $*"; }
 info() { echo -e "${CYAN}[*]${NC} $*"; }
 err()  { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
@@ -27,8 +29,11 @@ if [[ -d "${TPM_DIR}" ]]; then
     log "TPM already installed."
 else
     info "Cloning TPM..."
-    git clone https://github.com/tmux-plugins/tpm "${TPM_DIR}"
-    log "TPM installed."
+    if git clone https://github.com/tmux-plugins/tpm "${TPM_DIR}"; then
+        log "TPM installed."
+    else
+        err "Failed to clone TPM. Tmux plugins will not be available."
+    fi
 fi
 
 # --- Write .tmux.conf ---
@@ -95,9 +100,13 @@ EOF
 log ".tmux.conf written."
 
 # --- Install plugins via TPM ---
-info "Installing tmux plugins..."
-"${TPM_DIR}/bin/install_plugins"
-log "Plugins installed."
+if [[ -x "${TPM_DIR}/bin/install_plugins" ]]; then
+    info "Installing tmux plugins..."
+    "${TPM_DIR}/bin/install_plugins" || warn "Some tmux plugins may have failed to install"
+    log "Plugins installed."
+else
+    warn "TPM not available, skipping plugin install"
+fi
 
 echo ""
 log "Tmux setup complete. Start a new tmux session to use."

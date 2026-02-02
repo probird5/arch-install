@@ -127,9 +127,23 @@ configure_cachyos_repos() {
 
     # Import CachyOS signing key
     info "Importing CachyOS GPG key..."
-    pacman-key --recv-keys F3B607488DB35A47 --keyserver keyserver.ubuntu.com
+    local keyservers=(keyserver.ubuntu.com keys.openpgp.org pgp.mit.edu)
+    local key_imported=false
+    for ks in "${keyservers[@]}"; do
+        if pacman-key --recv-keys F3B607488DB35A47 --keyserver "$ks" 2>/dev/null; then
+            key_imported=true
+            log "GPG key received from $ks"
+            break
+        fi
+        warn "Keyserver $ks failed, trying next..."
+    done
+    if [[ "$key_imported" != true ]]; then
+        err "Could not import CachyOS GPG key from any keyserver. Skipping CachyOS repos."
+        CACHYOS_REPOS_ENABLED=false
+        return
+    fi
     pacman-key --lsign-key F3B607488DB35A47
-    log "CachyOS GPG key imported and locally signed."
+    log "CachyOS GPG key locally signed."
 
     # Create mirrorlist for v3 repos
     local v3_mirrorlist="/etc/pacman.d/cachyos-v3-mirrorlist"
@@ -152,46 +166,54 @@ EOF
     log "Created mirrorlist: ${main_mirrorlist}"
 
     # Step 1: Add only [cachyos] repo first (x86_64, works with standard pacman)
-    local tmpconf
-    tmpconf=$(mktemp)
-    awk -v main_mirrorlist="${main_mirrorlist}" '
-    /^\[core\]/ {
-        print "[cachyos]"
-        print "Include = " main_mirrorlist
-        print ""
-    }
-    { print }
-    ' /etc/pacman.conf > "${tmpconf}"
-    mv "${tmpconf}" /etc/pacman.conf
-    chmod 644 /etc/pacman.conf
-    log "Added [cachyos] repo to pacman.conf"
+    if ! grep -q "^\[cachyos\]" /etc/pacman.conf; then
+        local tmpconf
+        tmpconf=$(mktemp)
+        awk -v main_mirrorlist="${main_mirrorlist}" '
+        /^\[core\]/ {
+            print "[cachyos]"
+            print "Include = " main_mirrorlist
+            print ""
+        }
+        { print }
+        ' /etc/pacman.conf > "${tmpconf}"
+        mv "${tmpconf}" /etc/pacman.conf
+        chmod 644 /etc/pacman.conf
+        log "Added [cachyos] repo to pacman.conf"
+    else
+        log "[cachyos] repo already in pacman.conf, skipping insertion"
+    fi
 
     # Step 2: Sync and install CachyOS pacman (adds v3/v4 architecture support)
     info "Syncing [cachyos] repo..."
     pacman -Sy
     info "Installing CachyOS pacman (adds v3/v4 architecture support)..."
-    pacman -S --noconfirm cachyos/pacman
+    pacman -S --noconfirm --needed cachyos/pacman
     log "CachyOS pacman installed."
 
     # Step 3: Now add v3 repos (CachyOS pacman can handle v3 architecture)
-    tmpconf=$(mktemp)
-    awk -v level="${repo_level}" -v v3_mirrorlist="${v3_mirrorlist}" '
-    /^\[cachyos\]/ {
-        print "[cachyos-" level "]"
-        print "Include = " v3_mirrorlist
-        print ""
-        print "[cachyos-core-" level "]"
-        print "Include = " v3_mirrorlist
-        print ""
-        print "[cachyos-extra-" level "]"
-        print "Include = " v3_mirrorlist
-        print ""
-    }
-    { print }
-    ' /etc/pacman.conf > "${tmpconf}"
-    mv "${tmpconf}" /etc/pacman.conf
-    chmod 644 /etc/pacman.conf
-    log "Added v3 repos to pacman.conf"
+    if ! grep -q "^\[cachyos-${repo_level}\]" /etc/pacman.conf; then
+        tmpconf=$(mktemp)
+        awk -v level="${repo_level}" -v v3_mirrorlist="${v3_mirrorlist}" '
+        /^\[cachyos\]/ {
+            print "[cachyos-" level "]"
+            print "Include = " v3_mirrorlist
+            print ""
+            print "[cachyos-core-" level "]"
+            print "Include = " v3_mirrorlist
+            print ""
+            print "[cachyos-extra-" level "]"
+            print "Include = " v3_mirrorlist
+            print ""
+        }
+        { print }
+        ' /etc/pacman.conf > "${tmpconf}"
+        mv "${tmpconf}" /etc/pacman.conf
+        chmod 644 /etc/pacman.conf
+        log "Added v3 repos to pacman.conf"
+    else
+        log "v3 repos already in pacman.conf, skipping insertion"
+    fi
 
     # Step 4: Final sync with all repos
     info "Syncing all CachyOS repositories..."
@@ -265,12 +287,17 @@ configure_grub() {
 configure_user() {
     section "User Configuration"
 
+    # Build groups dynamically — only add groups that exist
+    local groups="${USER_GROUPS}"
+    [[ "$INSTALL_DOCKER" == true ]] && getent group docker &>/dev/null && groups+=",docker"
+    [[ "$INSTALL_VIRTUALIZATION" == true ]] && getent group libvirt &>/dev/null && groups+=",libvirt"
+
     if id "${USERNAME}" &>/dev/null; then
         log "User ${USERNAME} already exists, updating groups..."
-        usermod -aG "${USER_GROUPS}" "${USERNAME}"
+        usermod -aG "${groups}" "${USERNAME}"
     else
         log "Creating user ${USERNAME}..."
-        useradd -m -G "${USER_GROUPS}" -s "${USER_SHELL}" "${USERNAME}"
+        useradd -m -G "${groups}" -s "${USER_SHELL}" "${USERNAME}"
         log "Set a password for ${USERNAME}:"
         passwd "${USERNAME}"
     fi
@@ -281,7 +308,7 @@ configure_user() {
         log "Enabled sudo for wheel group"
     fi
 
-    log "User ${USERNAME} configured."
+    log "User ${USERNAME} configured (groups: ${groups})."
 }
 
 # ==============================================================================
@@ -298,11 +325,12 @@ configure_gaming() {
         return
     fi
 
+    INSTALL_GAMING=true
     if [[ "$CACHYOS_REPOS_ENABLED" == true ]]; then
         log "CachyOS repos detected — CachyOS gaming meta packages will be installed."
         INSTALL_CACHYOS_GAMING=true
     else
-        warn "CachyOS repos are required for gaming packages. No gaming packages will be installed."
+        log "No CachyOS repos — installing standard gaming packages (wine, steam, lutris, etc.)."
         INSTALL_CACHYOS_GAMING=false
     fi
 }
@@ -333,7 +361,13 @@ build_package_list() {
     [[ "$INSTALL_HYPRLAND" == true ]] && packages+=("${HYPRLAND_PACKAGES[@]}")
     [[ "$INSTALL_DEV_TOOLS" == true ]] && packages+=("${DEV_PACKAGES[@]}")
     [[ "$INSTALL_DOCKER" == true ]] && packages+=("${DOCKER_PACKAGES[@]}")
-    [[ "$INSTALL_CACHYOS_GAMING" == true ]] && packages+=("${CACHYOS_GAMING_PACKAGES[@]}")
+    if [[ "$INSTALL_GAMING" == true ]]; then
+        if [[ "$INSTALL_CACHYOS_GAMING" == true ]]; then
+            packages+=("${CACHYOS_GAMING_PACKAGES[@]}")
+        else
+            packages+=("${GAMING_PACKAGES[@]}")
+        fi
+    fi
     [[ "$INSTALL_VIRTUALIZATION" == true ]] && packages+=("${VIRT_PACKAGES[@]}")
     [[ "$CACHYOS_REPOS_ENABLED" == true ]] && packages+=("${CACHYOS_PACKAGES[@]}")
 
@@ -358,7 +392,8 @@ install_packages() {
     mapfile -t ALL_PACKAGES < <(build_package_list)
     info "Installing ${#ALL_PACKAGES[@]} packages..."
 
-    pacman -Syu --noconfirm --needed "${ALL_PACKAGES[@]}"
+    # --ask 4 auto-accepts removal of conflicting packages (e.g. CachyOS replacements)
+    pacman -Syu --noconfirm --needed --ask 4 "${ALL_PACKAGES[@]}"
 
     log "All pacman packages installed."
 }
@@ -369,46 +404,27 @@ install_packages() {
 enable_services() {
     section "Enabling Services"
 
-    # Core
-    systemctl enable NetworkManager
-    log "NetworkManager enabled"
+    local -a services=(
+        NetworkManager
+        bluetooth
+        sshd
+        fwupd
+        greetd
+        flatpak-system-helper
+        power-profiles-daemon
+        udisks2
+    )
 
-    systemctl enable bluetooth
-    log "Bluetooth enabled"
+    [[ "$INSTALL_DOCKER" == true ]] && services+=(docker)
+    [[ "$INSTALL_VIRTUALIZATION" == true ]] && services+=(libvirtd)
 
-    systemctl enable sshd
-    log "SSH enabled"
-
-    systemctl enable fwupd
-    log "fwupd enabled"
-
-    # Display
-    systemctl enable greetd
-    log "greetd login manager enabled"
-
-    # Flatpak
-    systemctl enable flatpak-system-helper
-    log "Flatpak enabled"
-
-    # Power
-    systemctl enable power-profiles-daemon
-    log "power-profiles-daemon enabled"
-
-    # Docker
-    if [[ "$INSTALL_DOCKER" == true ]]; then
-        systemctl enable docker
-        log "Docker enabled"
-    fi
-
-    # Virtualization
-    if [[ "$INSTALL_VIRTUALIZATION" == true ]]; then
-        systemctl enable libvirtd
-        log "libvirtd enabled"
-    fi
-
-    # udisks2
-    systemctl enable udisks2
-    log "udisks2 enabled"
+    for svc in "${services[@]}"; do
+        if systemctl enable "$svc" 2>/dev/null; then
+            log "$svc enabled"
+        else
+            warn "Could not enable $svc (unit not found?), skipping"
+        fi
+    done
 }
 
 # ==============================================================================
@@ -631,7 +647,8 @@ configure_swap() {
         rm -f /swapfile
         truncate -s 0 /swapfile
         chattr +C /swapfile 2>/dev/null || true
-        fallocate -l "${swap_size}G" /swapfile
+        # dd is required for btrfs — fallocate creates sparse files that are invalid for swap
+        dd if=/dev/zero of=/swapfile bs=1G count="${swap_size}" status=progress
         chmod 600 /swapfile
         mkswap /swapfile
     fi
@@ -654,10 +671,12 @@ configure_swap() {
 configure_rust() {
     section "Rust Toolchain"
 
-    if [[ "$INSTALL_DEV_TOOLS" == true ]]; then
+    if [[ "$INSTALL_DEV_TOOLS" == true ]] && command -v rustup &>/dev/null; then
         # rustup needs to run as the user
-        su - "${USERNAME}" -c 'rustup default stable'
+        su - "${USERNAME}" -c 'rustup default stable' || warn "Failed to set Rust toolchain (can be done manually later)"
         log "Rust stable toolchain installed for ${USERNAME}"
+    elif [[ "$INSTALL_DEV_TOOLS" == true ]]; then
+        warn "rustup not found, skipping Rust toolchain setup"
     fi
 }
 
@@ -673,9 +692,14 @@ prepare_post_install() {
         log "Already running from ${target}, skipping copy."
     else
         mkdir -p "${target}"
-        cp "${SCRIPT_DIR}/config.sh" "${target}/"
-        cp "${SCRIPT_DIR}/post-install.sh" "${target}/"
-        cp "${SCRIPT_DIR}/tmux-setup.sh" "${target}/"
+        local files=(config.sh post-install.sh tmux-setup.sh)
+        for f in "${files[@]}"; do
+            if [[ -f "${SCRIPT_DIR}/$f" ]]; then
+                cp "${SCRIPT_DIR}/$f" "${target}/"
+            else
+                warn "Missing ${f}, skipping copy"
+            fi
+        done
         log "Post-install scripts copied to ~${USERNAME}/arch_install/"
     fi
 
