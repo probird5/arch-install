@@ -247,6 +247,8 @@ configure_system() {
     log "Keymap: ${KEYMAP}"
 
     # Hostname
+    read -rp "Hostname [${HOSTNAME}]: " input_hostname
+    HOSTNAME="${input_hostname:-$HOSTNAME}"
     echo "${HOSTNAME}" > /etc/hostname
     cat > /etc/hosts << EOF
 127.0.0.1   localhost
@@ -705,25 +707,10 @@ configure_rust() {
 prepare_post_install() {
     section "Preparing Post-Install"
 
-    local target="/home/${USERNAME}/arch_install"
-
-    if [[ "$(realpath "${SCRIPT_DIR}")" == "$(realpath "${target}")" ]]; then
-        log "Already running from ${target}, skipping copy."
-    else
-        mkdir -p "${target}"
-        local files=(config.sh post-install.sh tmux-setup.sh)
-        for f in "${files[@]}"; do
-            if [[ -f "${SCRIPT_DIR}/$f" ]]; then
-                cp "${SCRIPT_DIR}/$f" "${target}/"
-            else
-                warn "Missing ${f}, skipping copy"
-            fi
-        done
-        log "Post-install scripts copied to ~${USERNAME}/arch_install/"
-    fi
-
-    chmod +x "${target}"/*.sh
-    chown -R "${USERNAME}:${USERNAME}" "${target}"
+    # Ensure scripts are executable and owned by the user
+    chmod +x "${SCRIPT_DIR}"/*.sh
+    chown -R "${USERNAME}:${USERNAME}" "${SCRIPT_DIR}"
+    log "Post-install scripts ready at ${SCRIPT_DIR}"
 }
 
 # ==============================================================================
@@ -745,7 +732,7 @@ print_summary() {
     echo -e "${YELLOW}  Next steps:${NC}"
     echo -e "  1. Reboot"
     echo -e "  2. Log in as ${USERNAME}"
-    echo -e "  3. Run: ${CYAN}~/arch_install/post-install.sh${NC}"
+    echo -e "  3. Run: ${CYAN}${SCRIPT_DIR}/post-install.sh${NC}"
     echo -e "     (installs AUR helper, AUR packages, configures dotfiles)"
     echo ""
 }
