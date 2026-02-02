@@ -85,7 +85,7 @@ INSTALL_DEV_TOOLS=true
 INSTALL_AUR_PACKAGES=true
 ```
 
-> **Note:** Gaming packages are only installed through [CachyOS Gaming](#cachyos-gaming-packages) and require CachyOS repos to be enabled. The `INSTALL_GAMING` toggle is overridden by the interactive gaming prompt during installation.
+> **Note:** The `INSTALL_GAMING` toggle is overridden by the interactive gaming prompt during installation. When CachyOS repos are enabled, CachyOS gaming meta packages are used. Without CachyOS, standard Arch gaming packages (wine, steam, lutris, etc.) are installed instead.
 
 ### Hardware Options
 
@@ -112,7 +112,9 @@ DOTFILES_REPO="https://github.com/probird5/dotfiles.git"
 DOTFILES_DIR="${HOME}/Documents/Repos/dotfiles"
 ```
 
-Stowed packages: `alacritty`, `ghostty`, `hypr`, `i3`, `librewolf`, `nvim`, `picom`, `rofi`, `starship`, `tmux`, `waybar`, `wezterm`, `wlogout`, `zsh`
+Stowed packages: `alacritty`, `ghostty`, `hypr`, `i3`, `librewolf`, `nvim`, `picom`, `rofi`, `starship`, `waybar`, `wezterm`, `wlogout`, `zsh`
+
+> **Note:** `tmux` is excluded from stow — it is managed by `tmux-setup.sh` which writes `.tmux.conf` directly and installs TPM plugins.
 
 ---
 
@@ -125,17 +127,17 @@ Run as root on a freshly installed base Arch system. Performs the following in o
 1. **Pre-flight checks** — verifies root access and internet
 2. **Pacman configuration** — parallel downloads, color, multilib
 3. **CachyOS repositories** — optional v3 optimized packages + CachyOS gaming/tools (interactive prompt)
-4. **Gaming configuration** — optional CachyOS gaming packages (interactive prompt)
+4. **Gaming configuration** — CachyOS gaming meta packages if repos enabled, otherwise standard Arch gaming packages (interactive prompt)
 5. **System configuration** — timezone, locale, keymap, hostname
 6. **Package installation** — all packages from config.sh based on feature toggles
 7. **GRUB bootloader** — EFI install with os-prober for dual-boot
-8. **User creation** — user account, sudo, groups
+8. **User creation** — user account, sudo, groups (docker/libvirt groups added dynamically based on feature toggles)
 9. **greetd login manager** — tuigreet with session selection (F3 to switch)
 10. **Steam Gamescope session** — couch gaming session entry (if gaming enabled)
 11. **Battery saver script** — toggle script at `/usr/local/bin/battery-saver`
 12. **SSH configuration** — password auth, user-only, no root login
 13. **Firewall** — firewalld with deferred SSH rule
-14. **Swap file** — optional 64GB btrfs swapfile (interactive prompt)
+14. **Swap file** — configurable size with auto-detected RAM recommendation, btrfs-native with dd fallback (interactive prompt)
 15. **Services** — NetworkManager, Bluetooth, SSH, Docker, libvirtd, greetd, etc.
 16. **Rust toolchain** — stable toolchain via rustup
 17. **Post-install prep** — copies scripts to user home
@@ -147,16 +149,16 @@ Run as your normal user after rebooting. Handles:
 1. **AUR helper** — builds and installs paru (or yay) from source
 2. **AUR packages** — installs any packages listed in `AUR_PACKAGES`
 3. **Git** — global user/email configuration
-4. **Shell** — sets zsh as default, adds plugin sources
-5. **Theming** — GTK 2/3/4, Qt, cursor themes (Dracula + Nordzy)
-6. **Environment variables** — Wayland, editor, cursor, Steam compat paths
-7. **XDG directories** — standard user directories
-8. **Flatpak** — adds Flathub remote
-9. **Firewall rules** — enables SSH in firewalld
-10. **PipeWire** — enables user-mode audio services
-11. **Dotfiles** — clones repo and stows all configs via GNU Stow
-12. **Rust verification** — ensures toolchain is ready
-13. **Tmux** — TPM install, config, plugins
+4. **Dotfiles** — clones repo and stows all configs via GNU Stow
+5. **Tmux** — TPM install, `.tmux.conf`, plugin installation
+6. **Shell** — sets zsh as default, appends plugin sources to stowed `.zshrc`
+7. **Theming** — GTK 2/3/4, Qt, cursor themes (Dracula + Nordzy)
+8. **Environment variables** — Wayland, editor, cursor, Steam compat paths
+9. **XDG directories** — standard user directories
+10. **Flatpak** — adds Flathub remote
+11. **Firewall rules** — enables SSH in firewalld
+12. **PipeWire** — enables user-mode audio services
+13. **Rust verification** — ensures toolchain is ready
 
 ---
 
@@ -167,8 +169,8 @@ The install script asks three questions during execution:
 | Prompt | Default | Effect |
 |---|---|---|
 | Add CachyOS repositories? | No | Enables CachyOS repos with v3 optimized packages, gaming meta, proton, etc. |
-| Will you be gaming on this install? | No | Installs CachyOS gaming meta packages (requires CachyOS repos) |
-| Create a 64GB swapfile? | No | Creates btrfs swapfile at `/swapfile` |
+| Will you be gaming on this install? | No | Installs CachyOS gaming meta packages (with CachyOS repos) or standard gaming packages (without) |
+| Swapfile size in GB (0 to skip) | 8 | Creates btrfs swapfile at `/swapfile`. Auto-detects RAM and recommends 8GB for general use or RAM-sized for hibernation |
 
 ---
 
@@ -184,13 +186,13 @@ When enabled, the script:
 
 This provides x86-64-v3 optimized rebuilds of Arch packages and access to CachyOS-specific packages (gaming meta, topgrade, proton-cachyos, wine-cachyos, etc.). The CachyOS pacman is a minimal fork that adds v3/v4 architecture recognition — without it, standard pacman rejects v3 packages.
 
+> **Note:** When CachyOS repos are enabled, standard mesa packages (`mesa`, `lib32-mesa`, `vulkan-radeon`, etc.) are automatically excluded from the install list since CachyOS provides optimized `mesa-git` replacements that conflict with the official packages.
+
 ---
 
 ## Gaming
 
 ### CachyOS Gaming Packages
-
-Gaming packages are **exclusively** sourced from CachyOS repositories. If you answer yes to the gaming prompt but CachyOS repos are not enabled, no gaming packages will be installed.
 
 When both CachyOS repos and gaming are enabled, the following are installed:
 
@@ -201,6 +203,12 @@ When both CachyOS repos and gaming are enabled, the following are installed:
 | `proton-cachyos-slr` | Proton-CachyOS Steam Linux Runtime variant |
 | `wine-cachyos` | CachyOS optimized Wine |
 | `umu-launcher` | Required for running Proton-CachyOS in Lutris and Heroic |
+
+### Standard Gaming Packages (without CachyOS)
+
+If CachyOS repos are not enabled, the following standard Arch packages are installed instead:
+
+`steam`, `lutris`, `gamescope`, `gamemode`, `lib32-gamemode`, `wine`, `wine-mono`, `wine-gecko`, `winetricks`, `lib32-gnutls`, `lib32-sdl2`
 
 ### Steam Big Picture Session
 
@@ -275,17 +283,18 @@ All package arrays are defined in `config.sh`. The `build_package_list()` functi
 | Category | Toggle | Contents |
 |---|---|---|
 | Base | always | base, base-devel, linux, firmware, btrfs-progs, grub, git, stow |
-| AMD GPU | `GPU_DRIVER="amd"` | mesa, vulkan-radeon, libva-mesa-driver, amd-ucode |
+| AMD GPU | `GPU_DRIVER="amd"` | mesa, vulkan-radeon, libva-mesa-driver, amd-ucode, amdgpu_top, rocm-smi-lib |
 | NVIDIA GPU | `GPU_DRIVER="nvidia"` | nvidia, nvidia-utils, egl-wayland |
 | Audio | always | pipewire, wireplumber, pavucontrol, pamixer |
 | Bluetooth | always | bluez, bluez-utils, blueman |
 | Networking | always | networkmanager, openssh, firewalld, samba |
 | Hyprland | `INSTALL_HYPRLAND` | hyprland, waybar, thunar, grim, slurp, polkit-kde-agent, qt5/6-wayland |
 | Fonts | always | FiraCode Nerd, JetBrains Mono Nerd, Inter, Noto |
-| CLI | always | zsh, tmux, starship, fzf, zoxide, ripgrep, fd, bat, btop, yazi, ghostty |
+| CLI | always | zsh, tmux, starship, fzf, zoxide, ripgrep, fd, bat, btop, yazi, ghostty, obsidian, spotify-launcher |
 | Development | `INSTALL_DEV_TOOLS` | neovim, go, rustup, python, nodejs, lua, lazygit |
 | Docker | `INSTALL_DOCKER` | docker, docker-compose |
-| CachyOS Gaming | interactive prompt | cachyos-gaming-meta, cachyos-gaming-applications, proton-cachyos-slr, wine-cachyos, umu-launcher |
+| Gaming | interactive prompt (no CachyOS) | steam, lutris, gamescope, gamemode, wine, winetricks |
+| CachyOS Gaming | interactive prompt (with CachyOS) | cachyos-gaming-meta, cachyos-gaming-applications, proton-cachyos-slr, wine-cachyos, umu-launcher |
 | Virtualization | `INSTALL_VIRTUALIZATION` | qemu-full, virt-manager, libvirt, swtpm |
 | CachyOS | CachyOS repos enabled | topgrade |
 | Browsers | always | firefox |

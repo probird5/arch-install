@@ -371,6 +371,24 @@ build_package_list() {
     [[ "$INSTALL_VIRTUALIZATION" == true ]] && packages+=("${VIRT_PACKAGES[@]}")
     [[ "$CACHYOS_REPOS_ENABLED" == true ]] && packages+=("${CACHYOS_PACKAGES[@]}")
 
+    # When CachyOS repos are enabled, their mesa-git packages replace standard
+    # mesa packages. Requesting both causes unresolvable conflicts.
+    if [[ "$CACHYOS_REPOS_ENABLED" == true ]]; then
+        local cachyos_skip=(
+            lib32-mesa lib32-vulkan-radeon lib32-libva-mesa-driver
+            mesa vulkan-radeon libva-mesa-driver
+        )
+        local filtered=()
+        local skip_set
+        skip_set=$(printf '%s\n' "${cachyos_skip[@]}")
+        for pkg in "${packages[@]}"; do
+            if ! echo "$skip_set" | grep -qxF "$pkg"; then
+                filtered+=("$pkg")
+            fi
+        done
+        packages=("${filtered[@]}")
+    fi
+
     # Deduplicate
     printf '%s\n' "${packages[@]}" | sort -u
 }
