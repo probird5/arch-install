@@ -2,46 +2,25 @@
 # ==============================================================================
 # Arch Linux Install - Configuration
 # ==============================================================================
-# Shared variables for all install phases. Edit these before running install.sh.
+# Package lists and default values. User-specific settings are prompted
+# interactively by install.sh — no need to edit this file.
 # ==============================================================================
 
-# --- User ---
-USERNAME="probird5"
+# --- Defaults (overridden by interactive prompts) ---
+DEFAULT_USERNAME="probird5"
+DEFAULT_HOSTNAME="archlinux"
+DEFAULT_TIMEZONE="America/Toronto"
+DEFAULT_LOCALE="en_CA.UTF-8"
+DEFAULT_KEYMAP="us"
+DEFAULT_GPU="amd"
+DEFAULT_AUR_HELPER="paru"
+DEFAULT_DOTFILES_REPO="https://github.com/probird5/dotfiles.git"
+
+# --- Static config (rarely changes) ---
 USER_SHELL="/usr/bin/zsh"
 USER_GROUPS="wheel,network,audio,video,render,kvm"
-HOSTNAME="messmer"
-
-# --- Locale & Time ---
-TIMEZONE="America/Toronto"
-LOCALE="en_CA.UTF-8"
-KEYMAP="us"
-
-# --- Boot ---
-# Set to the disk device for GRUB install (e.g., /dev/sda or /dev/nvme0n1)
-# GRUB will be installed in EFI mode — this is only used for fallback/MBR.
 GRUB_TARGET="x86_64-efi"
 EFI_DIRECTORY="/boot"
-
-# --- GPU ---
-# Options: "amd", "nvidia", "intel", "none"
-GPU_DRIVER="amd"
-
-# --- Feature toggles ---
-INSTALL_GAMING=true
-INSTALL_VIRTUALIZATION=true
-INSTALL_DOCKER=true
-INSTALL_HYPRLAND=true
-INSTALL_DEV_TOOLS=true
-INSTALL_AUR_PACKAGES=true
-
-# --- Dotfiles ---
-# Git repo URL for your stow-based dotfiles
-DOTFILES_REPO="https://github.com/probird5/dotfiles.git"
-DOTFILES_DIR="${HOME}/Documents/Repos/dotfiles"
-
-# --- AUR helper ---
-# Options: "paru", "yay"
-AUR_HELPER="paru"
 
 # ==============================================================================
 # Package Lists
@@ -90,13 +69,15 @@ CACHYOS_PACKAGES=(
 
 # --- NVIDIA GPU (if needed) ---
 NVIDIA_PACKAGES=(
-  nvidia
+  nvidia-dkms
   nvidia-utils
   lib32-nvidia-utils
   nvidia-settings
+  nvidia-hook
   vulkan-icd-loader
   lib32-vulkan-icd-loader
   egl-wayland
+  libva-nvidia-driver
 )
 
 # --- Audio (PipeWire) ---
@@ -227,6 +208,7 @@ CLI_PACKAGES=(
   spotify-launcher
   yazi
   lazydocker
+  eza
 )
 
 # --- Development ---

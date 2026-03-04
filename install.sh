@@ -28,6 +28,151 @@ info() { echo -e "${CYAN}[*]${NC} $*"; }
 section() { echo -e "\n${BOLD}${CYAN}=== $* ===${NC}\n"; }
 
 # ==============================================================================
+# Helper: yes/no prompt (defaults to $2: y or n)
+# ==============================================================================
+ask_yn() {
+    local prompt="$1"
+    local default="${2:-n}"
+    local hint="y/N"
+    [[ "$default" == "y" ]] && hint="Y/n"
+
+    local response
+    read -rp "  ${prompt} [${hint}] " response
+    response="${response:-$default}"
+    [[ "$response" =~ ^[Yy]$ ]]
+}
+
+# ==============================================================================
+# Interactive configuration — all prompts up front
+# ==============================================================================
+gather_config() {
+    section "System Configuration"
+
+    # --- Username ---
+    read -rp "  Username [${DEFAULT_USERNAME}]: " input
+    USERNAME="${input:-$DEFAULT_USERNAME}"
+
+    # --- Hostname ---
+    read -rp "  Hostname [${DEFAULT_HOSTNAME}]: " input
+    HOSTNAME="${input:-$DEFAULT_HOSTNAME}"
+
+    # --- Timezone ---
+    echo -e "  Current timezone default: ${CYAN}${DEFAULT_TIMEZONE}${NC}"
+    read -rp "  Timezone [${DEFAULT_TIMEZONE}]: " input
+    TIMEZONE="${input:-$DEFAULT_TIMEZONE}"
+    if [[ ! -f "/usr/share/zoneinfo/${TIMEZONE}" ]]; then
+        warn "Timezone '${TIMEZONE}' not found, falling back to UTC"
+        TIMEZONE="UTC"
+    fi
+
+    # --- Locale ---
+    read -rp "  Locale [${DEFAULT_LOCALE}]: " input
+    LOCALE="${input:-$DEFAULT_LOCALE}"
+
+    # --- Keymap ---
+    read -rp "  Keymap [${DEFAULT_KEYMAP}]: " input
+    KEYMAP="${input:-$DEFAULT_KEYMAP}"
+
+    # --- GPU driver ---
+    echo ""
+    echo -e "  GPU driver options: ${CYAN}amd${NC}, ${CYAN}nvidia${NC}, ${CYAN}intel${NC}, ${CYAN}none${NC}"
+    read -rp "  GPU driver [${DEFAULT_GPU}]: " input
+    GPU_DRIVER="${input:-$DEFAULT_GPU}"
+    case "$GPU_DRIVER" in
+        amd|nvidia|intel|none) ;;
+        *) warn "Unknown GPU driver '${GPU_DRIVER}', defaulting to none"; GPU_DRIVER="none" ;;
+    esac
+
+    # --- Feature toggles ---
+    echo ""
+    echo -e "  ${BOLD}Feature toggles:${NC}"
+    ask_yn "Install Hyprland desktop?" "y" && INSTALL_HYPRLAND=true || INSTALL_HYPRLAND=false
+    ask_yn "Install development tools? (neovim, go, rust, node, etc.)" "y" && INSTALL_DEV_TOOLS=true || INSTALL_DEV_TOOLS=false
+    ask_yn "Install Docker?" "y" && INSTALL_DOCKER=true || INSTALL_DOCKER=false
+    ask_yn "Install virtualization? (QEMU/KVM, virt-manager)" "y" && INSTALL_VIRTUALIZATION=true || INSTALL_VIRTUALIZATION=false
+    ask_yn "Install gaming packages? (Steam, Wine, Lutris, etc.)" "y" && INSTALL_GAMING=true || INSTALL_GAMING=false
+
+    # --- CachyOS repos ---
+    echo ""
+    ask_yn "Add CachyOS repositories? (v3 optimized packages, gaming meta, proton)" "n" && INSTALL_CACHYOS=true || INSTALL_CACHYOS=false
+
+    # --- AUR helper ---
+    echo ""
+    echo -e "  AUR helper options: ${CYAN}paru${NC}, ${CYAN}yay${NC}"
+    read -rp "  AUR helper [${DEFAULT_AUR_HELPER}]: " input
+    AUR_HELPER="${input:-$DEFAULT_AUR_HELPER}"
+    case "$AUR_HELPER" in
+        paru|yay) ;;
+        *) warn "Unknown AUR helper '${AUR_HELPER}', defaulting to paru"; AUR_HELPER="paru" ;;
+    esac
+    INSTALL_AUR_PACKAGES=true
+
+    # --- Dotfiles ---
+    echo ""
+    read -rp "  Dotfiles git repo URL [${DEFAULT_DOTFILES_REPO}]: " input
+    DOTFILES_REPO="${input:-$DEFAULT_DOTFILES_REPO}"
+    DOTFILES_DIR="/home/${USERNAME}/Documents/Repos/dotfiles"
+
+    # --- Swap ---
+    echo ""
+    local ram_gb
+    ram_gb=$(awk '/MemTotal/ {printf "%d", $2/1024/1024}' /proc/meminfo)
+    echo -e "  Detected RAM: ${CYAN}${ram_gb}GB${NC}"
+    echo "  Recommended: 8GB (general use) or ${ram_gb}GB+ (hibernation)"
+    read -rp "  Swapfile size in GB (0 to skip) [8]: " input
+    SWAP_SIZE="${input:-8}"
+
+    # --- Summary ---
+    echo ""
+    echo -e "${BOLD}${CYAN}=== Configuration Summary ===${NC}"
+    echo ""
+    echo -e "  Username:        ${CYAN}${USERNAME}${NC}"
+    echo -e "  Hostname:        ${CYAN}${HOSTNAME}${NC}"
+    echo -e "  Timezone:        ${CYAN}${TIMEZONE}${NC}"
+    echo -e "  Locale:          ${CYAN}${LOCALE}${NC}"
+    echo -e "  Keymap:          ${CYAN}${KEYMAP}${NC}"
+    echo -e "  GPU:             ${CYAN}${GPU_DRIVER}${NC}"
+    echo -e "  Hyprland:        ${CYAN}${INSTALL_HYPRLAND}${NC}"
+    echo -e "  Dev tools:       ${CYAN}${INSTALL_DEV_TOOLS}${NC}"
+    echo -e "  Docker:          ${CYAN}${INSTALL_DOCKER}${NC}"
+    echo -e "  Virtualization:  ${CYAN}${INSTALL_VIRTUALIZATION}${NC}"
+    echo -e "  Gaming:          ${CYAN}${INSTALL_GAMING}${NC}"
+    echo -e "  CachyOS repos:   ${CYAN}${INSTALL_CACHYOS}${NC}"
+    echo -e "  AUR helper:      ${CYAN}${AUR_HELPER}${NC}"
+    echo -e "  Dotfiles:        ${CYAN}${DOTFILES_REPO}${NC}"
+    echo -e "  Swap:            ${CYAN}${SWAP_SIZE}GB${NC}"
+    echo ""
+
+    if ! ask_yn "Proceed with this configuration?" "y"; then
+        err "Aborted by user."
+        exit 1
+    fi
+
+    # Save gathered config so post-install.sh can source it
+    cat > "${SCRIPT_DIR}/user-config.sh" << EOF
+# Auto-generated by install.sh — do not edit
+USERNAME="${USERNAME}"
+HOSTNAME="${HOSTNAME}"
+TIMEZONE="${TIMEZONE}"
+LOCALE="${LOCALE}"
+KEYMAP="${KEYMAP}"
+GPU_DRIVER="${GPU_DRIVER}"
+INSTALL_HYPRLAND=${INSTALL_HYPRLAND}
+INSTALL_DEV_TOOLS=${INSTALL_DEV_TOOLS}
+INSTALL_DOCKER=${INSTALL_DOCKER}
+INSTALL_VIRTUALIZATION=${INSTALL_VIRTUALIZATION}
+INSTALL_GAMING=${INSTALL_GAMING}
+INSTALL_CACHYOS=${INSTALL_CACHYOS}
+AUR_HELPER="${AUR_HELPER}"
+INSTALL_AUR_PACKAGES=${INSTALL_AUR_PACKAGES}
+DOTFILES_REPO="${DOTFILES_REPO}"
+DOTFILES_DIR="${DOTFILES_DIR}"
+SWAP_SIZE="${SWAP_SIZE}"
+EOF
+    log "Configuration saved to ${SCRIPT_DIR}/user-config.sh"
+}
+
+# ==============================================================================
 # Pre-flight checks
 # ==============================================================================
 preflight() {
@@ -92,8 +237,7 @@ configure_pacman() {
 configure_cachyos_repos() {
     section "CachyOS Repositories"
 
-    read -rp "Add CachyOS repositories? (v3 optimized packages, gaming meta, proton, etc.) [y/N] " response
-    if [[ ! "$response" =~ ^[Yy]$ ]]; then
+    if [[ "$INSTALL_CACHYOS" != true ]]; then
         warn "Skipping CachyOS repositories."
         CACHYOS_REPOS_ENABLED=false
         return
@@ -247,8 +391,6 @@ configure_system() {
     log "Keymap: ${KEYMAP}"
 
     # Hostname
-    read -rp "Hostname [${HOSTNAME}]: " input_hostname
-    HOSTNAME="${input_hostname:-$HOSTNAME}"
     echo "${HOSTNAME}" > /etc/hostname
     cat > /etc/hosts << EOF
 127.0.0.1   localhost
@@ -281,6 +423,83 @@ configure_grub() {
 
     grub-mkconfig -o /boot/grub/grub.cfg
     log "GRUB config generated with os-prober enabled."
+}
+
+# ==============================================================================
+# NVIDIA driver configuration (blacklist nouveau, DRM modeset, initramfs)
+# ==============================================================================
+configure_nvidia() {
+    if [[ "$GPU_DRIVER" != "nvidia" ]]; then
+        return
+    fi
+
+    section "NVIDIA Driver Configuration"
+
+    # --- Blacklist nouveau ---
+    log "Blacklisting nouveau driver..."
+    cat > /etc/modprobe.d/nouveau-blacklist.conf << 'EOF'
+blacklist nouveau
+options nouveau modeset=0
+EOF
+    log "nouveau blacklisted via /etc/modprobe.d/nouveau-blacklist.conf"
+
+    # --- Enable early KMS (DRM kernel modesetting) ---
+    log "Configuring NVIDIA kernel modules for early KMS..."
+    cat > /etc/modprobe.d/nvidia.conf << 'EOF'
+options nvidia_drm modeset=1
+options nvidia_drm fbdev=1
+options nvidia NVreg_PreserveVideoMemoryAllocations=1
+EOF
+    log "NVIDIA DRM modeset and framebuffer device enabled"
+
+    # --- Add NVIDIA modules to mkinitcpio ---
+    if grep -q "^MODULES=" /etc/mkinitcpio.conf; then
+        local current_modules
+        current_modules=$(grep "^MODULES=" /etc/mkinitcpio.conf | sed 's/MODULES=(\(.*\))/\1/')
+        local nvidia_modules="nvidia nvidia_modeset nvidia_uvm nvidia_drm"
+
+        # Only add modules that aren't already present
+        local new_modules="$current_modules"
+        for mod in $nvidia_modules; do
+            if ! echo "$current_modules" | grep -qw "$mod"; then
+                new_modules="$new_modules $mod"
+            fi
+        done
+        # Trim leading/trailing whitespace
+        new_modules=$(echo "$new_modules" | xargs)
+
+        sed -i "s/^MODULES=.*/MODULES=($new_modules)/" /etc/mkinitcpio.conf
+        log "Added NVIDIA modules to mkinitcpio: $nvidia_modules"
+    fi
+
+    # --- Regenerate initramfs ---
+    info "Regenerating initramfs..."
+    mkinitcpio -P
+    log "Initramfs regenerated with NVIDIA modules"
+
+    # --- Add NVIDIA kernel parameters to GRUB ---
+    local grub_file="/etc/default/grub"
+    local nvidia_params="nvidia_drm.modeset=1 nvidia_drm.fbdev=1"
+
+    if ! grep -q "nvidia_drm.modeset=1" "$grub_file"; then
+        sed -i "s/\(GRUB_CMDLINE_LINUX_DEFAULT=\"[^\"]*\)/\1 ${nvidia_params}/" "$grub_file"
+        log "Added NVIDIA kernel parameters to GRUB: $nvidia_params"
+
+        # Regenerate GRUB config
+        info "Regenerating GRUB config..."
+        grub-mkconfig -o /boot/grub/grub.cfg
+        log "GRUB config regenerated with NVIDIA parameters"
+    else
+        log "NVIDIA kernel parameters already in GRUB config"
+    fi
+
+    # --- Enable NVIDIA suspend/resume services ---
+    systemctl enable nvidia-suspend.service 2>/dev/null || true
+    systemctl enable nvidia-hibernate.service 2>/dev/null || true
+    systemctl enable nvidia-resume.service 2>/dev/null || true
+    log "NVIDIA suspend/hibernate/resume services enabled"
+
+    log "NVIDIA driver configuration complete (nouveau is blacklisted)"
 }
 
 # ==============================================================================
@@ -319,15 +538,12 @@ configure_user() {
 configure_gaming() {
     section "Gaming Configuration"
 
-    read -rp "Will you be gaming on this install? [y/N] " response
-    if [[ ! "$response" =~ ^[Yy]$ ]]; then
+    if [[ "$INSTALL_GAMING" != true ]]; then
         warn "Skipping gaming packages."
-        INSTALL_GAMING=false
         INSTALL_CACHYOS_GAMING=false
         return
     fi
 
-    INSTALL_GAMING=true
     if [[ "$CACHYOS_REPOS_ENABLED" == true ]]; then
         log "CachyOS repos detected — CachyOS gaming meta packages will be installed."
         INSTALL_CACHYOS_GAMING=true
@@ -446,6 +662,43 @@ enable_services() {
             warn "Could not enable $svc (unit not found?), skipping"
         fi
     done
+}
+
+# ==============================================================================
+# Configure libvirt default network
+# ==============================================================================
+configure_libvirt_network() {
+    if [[ "$INSTALL_VIRTUALIZATION" != true ]]; then
+        return
+    fi
+
+    section "Libvirt Default Network"
+
+    # libvirtd must be running to configure networks via virsh
+    if ! systemctl is-active libvirtd &>/dev/null; then
+        info "Starting libvirtd temporarily to configure default network..."
+        systemctl start libvirtd
+    fi
+
+    # Wait briefly for libvirtd socket to be ready
+    sleep 2
+
+    # Define the default network if it doesn't exist
+    if ! virsh net-info default &>/dev/null; then
+        if [[ -f /usr/share/libvirt/networks/default.xml ]]; then
+            virsh net-define /usr/share/libvirt/networks/default.xml
+            log "Defined default NAT network"
+        else
+            warn "default.xml not found, skipping network definition"
+            return
+        fi
+    fi
+
+    # Enable auto-start and start the network
+    virsh net-autostart default 2>/dev/null || warn "Could not set default network to autostart"
+    virsh net-start default 2>/dev/null || log "Default network already active"
+
+    log "Libvirt default NAT network configured and set to auto-start"
 }
 
 # ==============================================================================
@@ -640,28 +893,20 @@ configure_swap() {
         return
     fi
 
-    local ram_gb
-    ram_gb=$(awk '/MemTotal/ {printf "%d", $2/1024/1024}' /proc/meminfo)
-
-    echo "  Detected RAM: ${ram_gb}GB"
-    echo "  Recommended:  8GB (general use) or ${ram_gb}GB+ (hibernation support)"
-    read -rp "Swapfile size in GB (0 to skip) [8]: " swap_size
-    swap_size="${swap_size:-8}"
-
-    if [[ "$swap_size" == "0" ]]; then
+    if [[ "$SWAP_SIZE" == "0" ]]; then
         warn "Skipping swapfile creation."
         return
     fi
 
-    if ! [[ "$swap_size" =~ ^[0-9]+$ ]] || [[ "$swap_size" -lt 1 ]]; then
-        warn "Invalid size '${swap_size}', skipping swapfile."
+    if ! [[ "$SWAP_SIZE" =~ ^[0-9]+$ ]] || [[ "$SWAP_SIZE" -lt 1 ]]; then
+        warn "Invalid swap size '${SWAP_SIZE}', skipping swapfile."
         return
     fi
 
-    info "Creating ${swap_size}GB swapfile (this may take a moment)..."
+    info "Creating ${SWAP_SIZE}GB swapfile (this may take a moment)..."
 
     # Try btrfs-native method first, fall back to manual creation
-    if btrfs filesystem mkswapfile --size "${swap_size}G" /swapfile 2>/dev/null; then
+    if btrfs filesystem mkswapfile --size "${SWAP_SIZE}G" /swapfile 2>/dev/null; then
         log "Swapfile created via btrfs mkswapfile."
     else
         warn "btrfs mkswapfile failed, falling back to manual creation..."
@@ -669,7 +914,7 @@ configure_swap() {
         truncate -s 0 /swapfile
         chattr +C /swapfile 2>/dev/null || true
         # dd is required for btrfs — fallocate creates sparse files that are invalid for swap
-        dd if=/dev/zero of=/swapfile bs=1G count="${swap_size}" status=progress
+        dd if=/dev/zero of=/swapfile bs=1G count="${SWAP_SIZE}" status=progress
         chmod 600 /swapfile
         mkswap /swapfile
     fi
@@ -679,7 +924,7 @@ configure_swap() {
         if ! grep -q "/swapfile" /etc/fstab; then
             echo '/swapfile none swap defaults 0 0' >> /etc/fstab
         fi
-        log "Swapfile (${swap_size}GB) created and enabled."
+        log "Swapfile (${SWAP_SIZE}GB) created and enabled."
     else
         err "Failed to enable swapfile. You may need to configure swap manually."
         rm -f /swapfile
@@ -747,17 +992,18 @@ main() {
     echo ""
     echo -e "${CYAN}============================================${NC}"
     echo -e "${CYAN}  Arch Linux Post-Install Setup${NC}"
-    echo -e "${CYAN}  (Based on NixOS probird5 config)${NC}"
     echo -e "${CYAN}============================================${NC}"
     echo ""
 
     preflight
+    gather_config
     configure_pacman
     configure_cachyos_repos
     configure_gaming
     configure_system
     install_packages
     configure_grub
+    configure_nvidia
     configure_user
     configure_greetd
     configure_steam_session
@@ -766,6 +1012,7 @@ main() {
     configure_firewall
     configure_swap
     enable_services
+    configure_libvirt_network
     configure_rust
     prepare_post_install
     print_summary

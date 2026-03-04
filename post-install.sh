@@ -15,6 +15,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/config.sh"
 
+# Source user-specific config saved by install.sh
+if [[ -f "${SCRIPT_DIR}/user-config.sh" ]]; then
+    source "${SCRIPT_DIR}/user-config.sh"
+else
+    echo -e "\033[0;31m[ERROR]\033[0m user-config.sh not found. Run install.sh first."
+    exit 1
+fi
+
 # --- Colors ---
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -335,7 +343,7 @@ setup_dotfiles() {
     # Stow all dotfiles packages directly
     # tmux is excluded — managed by tmux-setup.sh instead
     local stow_dirs=(
-        alacritty ghostty hypr i3 librewolf nvim
+        alacritty fastfetch ghostty hypr i3 librewolf nvim
         picom rofi starship waybar wezterm wlogout zsh
     )
 
