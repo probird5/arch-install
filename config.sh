@@ -79,6 +79,18 @@ NVIDIA_PACKAGES=(
   libva-nvidia-driver
 )
 
+# CachyOS-specific NVIDIA packages (580xx proprietary branch).
+# nvidia-580xx-utils pulls in lib32-nvidia-580xx-utils, egl-wayland,
+# and opencl-nvidia-580xx as dependencies automatically.
+CACHYOS_NVIDIA_PACKAGES=(
+  nvidia-580xx-dkms
+  nvidia-580xx-utils
+  nvidia-580xx-settings
+  vulkan-icd-loader
+  lib32-vulkan-icd-loader
+  libva-nvidia-driver
+)
+
 # --- Audio (PipeWire) ---
 AUDIO_PACKAGES=(
   pipewire

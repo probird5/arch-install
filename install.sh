@@ -573,7 +573,13 @@ build_package_list() {
 
     case "${GPU_DRIVER}" in
         amd)    packages+=("${AMD_PACKAGES[@]}") ;;
-        nvidia) packages+=("${NVIDIA_PACKAGES[@]}") ;;
+        nvidia)
+            if [[ "$CACHYOS_REPOS_ENABLED" == true ]]; then
+                packages+=("${CACHYOS_NVIDIA_PACKAGES[@]}")
+            else
+                packages+=("${NVIDIA_PACKAGES[@]}")
+            fi
+            ;;
     esac
 
     [[ "$INSTALL_HYPRLAND" == true ]] && packages+=("${HYPRLAND_PACKAGES[@]}")
@@ -630,7 +636,9 @@ install_packages() {
     info "Installing ${#ALL_PACKAGES[@]} packages..."
 
     # --ask 4 auto-accepts removal of conflicting packages (e.g. CachyOS replacements)
-    pacman -Syu --noconfirm --needed --ask 4 "${ALL_PACKAGES[@]}"
+    # Pipe `yes ""` to auto-accept default provider choices (e.g. "Enter a number (default=1):")
+    # --noconfirm alone does not handle provider selection prompts.
+    yes "" | pacman -Syu --noconfirm --needed --ask 4 "${ALL_PACKAGES[@]}"
 
     log "All pacman packages installed."
 }
