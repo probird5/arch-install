@@ -73,7 +73,6 @@ NVIDIA_PACKAGES=(
   nvidia-utils
   lib32-nvidia-utils
   nvidia-settings
-  nvidia-hook
   vulkan-icd-loader
   lib32-vulkan-icd-loader
   egl-wayland
