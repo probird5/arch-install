@@ -436,6 +436,7 @@ main() {
     echo ""
 
     preflight
+    verify_rust
     install_aur_helper
     install_aur_packages
     configure_git
@@ -448,7 +449,6 @@ main() {
     configure_flatpak
     configure_firewall
     enable_user_services
-    verify_rust
     print_summary
 }
 
